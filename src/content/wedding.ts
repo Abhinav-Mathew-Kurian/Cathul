@@ -204,6 +204,13 @@ export const wedding = {
         src: "/audio/song-3-dekha-hi-nahi.mp3",
         cover: "/images/music/covers/song-3-dekha-hi-nahi.jpg",
       },
+      {
+        id: "rehbara",
+        title: "Rehbara",
+        artist: "Abhijeet Srivastava, Shayra Apoorva",
+        src: "/audio/song-4-rehbara.mp3",
+        cover: "/images/music/covers/song-4-rehbara.jpg",
+      },
     ] satisfies Track[],
   },
 
