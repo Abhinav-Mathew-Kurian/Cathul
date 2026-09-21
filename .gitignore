@@ -36,6 +36,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local RSVP fallback storage (used until MongoDB Atlas is wired up)
+/.data
+
+# design reference screenshots — not app assets, not for the repo
+/Cathul Website  Reference photos
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

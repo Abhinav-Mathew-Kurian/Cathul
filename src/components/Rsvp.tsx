@@ -1,0 +1,368 @@
+"use client";
+
+import { Fragment, useState, type FormEvent } from "react";
+import { motion } from "motion/react";
+import Image from "next/image";
+import { wedding } from "@/content/wedding";
+import { HeartIcon } from "./doodles";
+import { FallingPetals } from "./FallingPetals";
+
+const VIEWPORT = { once: true, margin: "-60px" } as const;
+
+type Attendance = "yes" | "no" | "";
+type Status = "idle" | "submitting" | "done" | "error";
+type FormErrors = Partial<Record<"name" | "phone" | "attendance" | "events", string>>;
+
+const ATTENDANCE_OPTIONS: { value: "yes" | "no"; label: string }[] = [
+  { value: "yes", label: "Yes! Can't Wait" },
+  { value: "no", label: "Sorry, Can't Make It" },
+];
+
+// The two real receptions, reused from Celebrations content rather than a
+// second hardcoded list — if a venue/city ever changes there, this follows
+// automatically instead of quietly going stale.
+const RSVP_EVENTS = wedding.celebrations.events.map((event) => ({
+  id: event.id,
+  label: `${event.label} (${event.address})`,
+}));
+const ALL_EVENT_IDS = RSVP_EVENTS.map((event) => event.id);
+
+function normalizePhoneDigits(raw: string): string {
+  return raw.replace(/[^\d]/g, "");
+}
+
+function isValidPhone(raw: string, countryCode: string): boolean {
+  const digits = normalizePhoneDigits(raw);
+  // Indian mobile numbers: 10 digits, starting 6-9. Other country codes get
+  // a looser length check rather than guessing every country's format.
+  if (countryCode === "+91") return /^[6-9]\d{9}$/.test(digits);
+  return digits.length >= 7 && digits.length <= 15;
+}
+
+function validate(fields: {
+  name: string;
+  phone: string;
+  countryCode: string;
+  attendance: Attendance;
+  events: string[];
+}): FormErrors {
+  const errors: FormErrors = {};
+  if (!fields.name.trim()) errors.name = "Please enter your name.";
+  // Optional — only validate format if they actually typed something.
+  if (fields.phone.trim() && !isValidPhone(fields.phone, fields.countryCode)) {
+    errors.phone = "Please enter a valid phone number.";
+  }
+  if (!fields.attendance) {
+    errors.attendance = "Please tell us whether you'll be attending.";
+  }
+  if (fields.attendance === "yes" && fields.events.length === 0) {
+    errors.events = "Please select at least one event.";
+  }
+  return errors;
+}
+
+export function Rsvp() {
+  const [name, setName] = useState("");
+  const [countryCode, setCountryCode] = useState(wedding.rsvp.countryCodes[0]);
+  const [phone, setPhone] = useState("");
+  const [attendance, setAttendance] = useState<Attendance>("");
+  const [events, setEvents] = useState<string[]>([]);
+  const [message, setMessage] = useState("");
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [status, setStatus] = useState<Status>("idle");
+
+  // "Both" is never stored as its own value — it's derived from whether
+  // every real event is already selected. That way toggling either
+  // individual event automatically keeps "Both" in sync (checked only when
+  // both are, and it never has to be separately un-set), and the payload
+  // sent to the server always lists the actual events chosen.
+  const bothChecked = ALL_EVENT_IDS.length > 0 && ALL_EVENT_IDS.every((id) => events.includes(id));
+
+  function toggleEvent(id: string) {
+    setEvents((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
+  }
+
+  function toggleBoth() {
+    setEvents(bothChecked ? [] : ALL_EVENT_IDS);
+  }
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    const nextErrors = validate({ name, phone, countryCode, attendance, events });
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    setStatus("submitting");
+
+    const payload = {
+      name: name.trim(),
+      phone: phone.trim() ? `${countryCode} ${normalizePhoneDigits(phone)}` : "",
+      attending: attendance,
+      events,
+      message: message.trim(),
+    };
+
+    try {
+      const res = await fetch("/api/rsvp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("failed");
+      setStatus("done");
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  return (
+    <section id="rsvp" className="rsvp-bg relative overflow-hidden px-5 pt-16 pb-6">
+      <FallingPetals count={9} seedOffset={300} className="absolute inset-0 z-0" />
+
+      <div className="relative z-10 mx-auto max-w-md">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={VIEWPORT}
+          transition={{ duration: 0.6 }}
+          className="text-center"
+        >
+          <h2 className="flex items-center justify-center gap-2 font-hand text-4xl text-ink sm:text-5xl">
+            {wedding.rsvp.heading}
+            <HeartIcon className="h-5 w-5 text-rose" />
+          </h2>
+          <p className="mt-2 font-body text-sm leading-relaxed text-ink/60">
+            {wedding.rsvp.subheading.map((line, i) => (
+              <Fragment key={line}>
+                {line}
+                {i < wedding.rsvp.subheading.length - 1 && <br />}
+              </Fragment>
+            ))}
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={VIEWPORT}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="mt-8"
+        >
+          {status === "done" ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col items-center rounded-3xl border border-ink/10 bg-white/70 px-6 py-10 text-center shadow-[var(--card-shadow)]"
+            >
+              <motion.div
+                initial={{ rotate: -20, scale: 0 }}
+                animate={{ rotate: -6, scale: 1 }}
+                transition={{ type: "spring", stiffness: 260, damping: 14 }}
+                className="flex h-16 w-16 items-center justify-center rounded-full bg-rose text-white"
+              >
+                <HeartIcon className="h-7 w-7" />
+              </motion.div>
+              <p className="mt-5 font-hand text-3xl text-ink">You&apos;re on the list!</p>
+              <p className="mt-2 font-body text-sm text-ink/65">
+                Can&apos;t wait to celebrate with you.
+              </p>
+            </motion.div>
+          ) : (
+            <form onSubmit={handleSubmit} noValidate className="space-y-5 text-left">
+              <div>
+                <label htmlFor="rsvp-name" className="font-body text-sm font-bold text-ink">
+                  Your Name <span className="text-rose">*</span>
+                </label>
+                <input
+                  id="rsvp-name"
+                  name="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Rahul Menon"
+                  aria-invalid={!!errors.name}
+                  aria-describedby={errors.name ? "rsvp-name-error" : undefined}
+                  className={`mt-1.5 w-full rounded-xl border bg-white/85 px-3.5 py-3 font-body text-sm text-ink placeholder:text-ink/35 focus:outline-none focus:border-rose ${
+                    errors.name ? "border-rose-deep" : "border-ink/15"
+                  }`}
+                />
+                {errors.name && (
+                  <p id="rsvp-name-error" role="alert" className="mt-1 font-body text-xs text-rose-deep">
+                    {errors.name}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="rsvp-phone" className="font-body text-sm font-bold text-ink">
+                  Phone Number
+                </label>
+                <div className="mt-1.5 flex gap-2">
+                  <select
+                    aria-label="Country code"
+                    value={countryCode}
+                    onChange={(e) => setCountryCode(e.target.value)}
+                    className="flex-shrink-0 rounded-xl border border-ink/15 bg-white/85 px-2.5 py-3 font-body text-sm text-ink focus:border-rose focus:outline-none"
+                  >
+                    {wedding.rsvp.countryCodes.map((code) => (
+                      <option key={code} value={code}>
+                        {code}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    id="rsvp-phone"
+                    name="phone"
+                    type="tel"
+                    inputMode="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="e.g. 98765 43210"
+                    aria-invalid={!!errors.phone}
+                    aria-describedby={errors.phone ? "rsvp-phone-error" : undefined}
+                    className={`min-w-0 flex-1 rounded-xl border bg-white/85 px-3.5 py-3 font-body text-sm text-ink placeholder:text-ink/35 focus:outline-none focus:border-rose ${
+                      errors.phone ? "border-rose-deep" : "border-ink/15"
+                    }`}
+                  />
+                </div>
+                {errors.phone && (
+                  <p id="rsvp-phone-error" role="alert" className="mt-1 font-body text-xs text-rose-deep">
+                    {errors.phone}
+                  </p>
+                )}
+              </div>
+
+              <fieldset aria-describedby={errors.attendance ? "rsvp-attendance-error" : undefined}>
+                <legend className="font-body text-sm font-bold text-ink">
+                  Will you attend? <span className="text-rose">*</span>
+                </legend>
+                <div className="mt-2 flex gap-3">
+                  {ATTENDANCE_OPTIONS.map((option) => {
+                    const checked = attendance === option.value;
+                    return (
+                      <label
+                        key={option.value}
+                        className={`flex-1 cursor-pointer rounded-full px-3 py-3 text-center font-body text-xs font-bold transition focus-within:ring-2 focus-within:ring-rose focus-within:ring-offset-2 ${
+                          checked
+                            ? "bg-rose text-white shadow-[var(--card-shadow)]"
+                            : "border border-ink/15 bg-white/70 text-ink/55"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="attendance"
+                          value={option.value}
+                          checked={checked}
+                          onChange={() => {
+                            setAttendance(option.value);
+                            if (option.value === "no") setEvents([]);
+                          }}
+                          className="sr-only"
+                        />
+                        {option.label}
+                      </label>
+                    );
+                  })}
+                </div>
+                {errors.attendance && (
+                  <p id="rsvp-attendance-error" role="alert" className="mt-1.5 font-body text-xs text-rose-deep">
+                    {errors.attendance}
+                  </p>
+                )}
+              </fieldset>
+
+              {attendance === "yes" && (
+                <fieldset aria-describedby={errors.events ? "rsvp-events-error" : undefined}>
+                  <legend className="font-body text-sm font-bold text-ink">
+                    Which event(s) will you attend? <span className="text-rose">*</span>
+                  </legend>
+                  <div className="mt-2 space-y-2">
+                    {RSVP_EVENTS.map((option) => (
+                      <label
+                        key={option.id}
+                        className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-ink/15 bg-white/70 px-3.5 py-3"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={events.includes(option.id)}
+                          onChange={() => toggleEvent(option.id)}
+                          className="h-4 w-4 accent-rose"
+                        />
+                        <span className="font-body text-sm text-ink">{option.label}</span>
+                      </label>
+                    ))}
+                    <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-ink/15 bg-white/70 px-3.5 py-3">
+                      <input
+                        type="checkbox"
+                        checked={bothChecked}
+                        onChange={toggleBoth}
+                        className="h-4 w-4 accent-rose"
+                      />
+                      <span className="font-body text-sm text-ink">{wedding.rsvp.bothEventsLabel}</span>
+                    </label>
+                  </div>
+                  {errors.events && (
+                    <p id="rsvp-events-error" role="alert" className="mt-1.5 font-body text-xs text-rose-deep">
+                      {errors.events}
+                    </p>
+                  )}
+                </fieldset>
+              )}
+
+              <div>
+                <label htmlFor="rsvp-message" className="font-body text-sm font-bold text-ink">
+                  Any message for the couple?
+                </label>
+                <textarea
+                  id="rsvp-message"
+                  name="message"
+                  rows={3}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="e.g. Best wishes!"
+                  className="mt-1.5 w-full resize-y rounded-xl border border-ink/15 bg-white/85 px-3.5 py-3 font-body text-sm text-ink placeholder:text-ink/35 focus:border-rose focus:outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={status === "submitting"}
+                className="w-full rounded-full bg-rose py-4 font-body text-sm font-bold text-white shadow-[var(--card-shadow)] transition hover:bg-rose-deep active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {status === "submitting" ? "Submitting..." : "Submit RSVP"}
+              </button>
+
+              {status === "error" && (
+                <p role="alert" className="text-center font-body text-xs text-rose-deep">
+                  Something went wrong. Please try again.
+                </p>
+              )}
+            </form>
+          )}
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={VIEWPORT}
+          transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }}
+          className="relative -mx-5 mt-10 aspect-[3/2] overflow-hidden"
+        >
+          <Image
+            src={wedding.rsvp.bottomImage}
+            alt="Athul and Catherine driving off together, seen from behind, with a Just Married(ish) sign"
+            fill
+            sizes="(max-width: 640px) 100vw, 500px"
+            loading="lazy"
+            className="object-contain"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-[var(--sky-bottom)] to-transparent"
+          />
+        </motion.div>
+      </div>
+    </section>
+  );
+}
