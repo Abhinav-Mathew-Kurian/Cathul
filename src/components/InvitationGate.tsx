@@ -161,7 +161,7 @@ export function InvitationGate({ children }: { children: React.ReactNode }) {
                 </p>
                 <p className="font-display text-3xl italic leading-none text-dusk">&amp;</p>
                 <p className="font-display text-5xl font-medium leading-none text-ink">
-                  {wedding.couple.bride}
+                  Catherine
                 </p>
               </div>
 

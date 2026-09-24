@@ -64,7 +64,7 @@ const unsplash = {
 export const wedding = {
   couple: {
     groom: "Athul",
-    bride: "Catherine",
+    bride: "Cathy",
   },
 
   tagline: "Two families. Two celebrations. One crazy love story.",
@@ -163,7 +163,7 @@ export const wedding = {
       { id: "g2", caption: "That look", image: "/images/gallery/g2-forest-glance.jpg" },
       { id: "g3", caption: "Lost in the ruins", image: "/images/gallery/g3-temple-pillars.jpg" },
       { id: "g4", caption: "Golden hour", image: "/images/gallery/g4-temple-sunset.jpg" },
-      { id: "g5", caption: "fit check", image: "/images/gallery/g5-temple-selfie.jpg" },
+      { id: "g5", caption: "Peace & Happy", image: "/images/gallery/g5-temple-selfie.jpg" },
       { id: "g6", caption: "Quiet mornings", image: "/images/gallery/g6-cafe-hands.jpg" },
       { id: "g7", caption: "Up in the clouds", image: "/images/gallery/g7-hills-tees.jpg" },
       { id: "g8", caption: "Mirror selfie o'clock", image: "/images/gallery/g8-cafe-mirror.jpg" },
@@ -211,6 +211,13 @@ export const wedding = {
         src: "/audio/song-4-rehbara.mp3",
         cover: "/images/music/covers/song-4-rehbara.jpg",
       },
+      {
+        id: "nenjodu-cherthu",
+        title: "Nenjodu Cherthu",
+        artist: "Yuvvh",
+        src: "/audio/song-5-nenjodu-cherthu.mp3",
+        cover: null,
+      },
     ] satisfies Track[],
   },
 
@@ -239,7 +246,7 @@ export const wedding = {
       {
         label: "Bride's Side",
         contacts: [
-          { name: "Catherine", phone: "+91 70348 58948" },
+          { name: "Cathy", phone: "+91 70348 58948" },
           { name: "Bride's Father", phone: "+91 94957 64123" },
           { name: "Bride's Brother", phone: "+91 86066 68939" },
         ],

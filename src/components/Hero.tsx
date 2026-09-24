@@ -137,7 +137,7 @@ export function Hero() {
               <span className="h-px w-7 bg-ink/20" />
             </div>
             <p className="font-display text-5xl leading-none font-medium text-ink">
-              {wedding.couple.bride}
+              Catherine
             </p>
 
             <p className="mt-3 font-body text-sm text-ink/65">{wedding.tagline}</p>
