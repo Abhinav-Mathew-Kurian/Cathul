@@ -6,6 +6,7 @@ import Image from "next/image";
 import { wedding } from "@/content/wedding";
 import { HeartIcon } from "./doodles";
 import { FallingPetals } from "./FallingPetals";
+import { StringLights } from "./StringLights";
 
 const VIEWPORT = { once: true, margin: "-60px" } as const;
 
@@ -118,6 +119,7 @@ export function Rsvp() {
 
   return (
     <section id="rsvp" className="rsvp-bg relative overflow-hidden px-5 pt-16 pb-6">
+      <StringLights seedOffset={300} />
       <FallingPetals count={9} seedOffset={300} className="absolute inset-0 z-0" />
 
       <div className="relative z-10 mx-auto max-w-md">

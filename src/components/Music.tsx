@@ -6,6 +6,7 @@ import Image from "next/image";
 import { wedding, type Track } from "@/content/wedding";
 import { HeartIcon } from "./doodles";
 import { FallingPetals } from "./FallingPetals";
+import { StringLights } from "./StringLights";
 import { useMusic, useMusicProgress } from "./MusicProvider";
 
 const VIEWPORT = { once: true, margin: "-60px" } as const;
@@ -111,6 +112,7 @@ export function Music() {
 
   return (
     <section id="music" className="music-bg relative overflow-hidden px-5 pt-16 pb-6">
+      <StringLights seedOffset={500} />
       <FallingPetals count={8} seedOffset={500} className="absolute inset-0 z-0" />
 
       <div className="relative z-10 mx-auto max-w-md">

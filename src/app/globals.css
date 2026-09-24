@@ -23,6 +23,9 @@
   /* Leaf green, used sparingly */
   --leaf: #5f7a52;
 
+  /* Warm bulb glow — string lights + the Our Story traveling glow */
+  --bulb-glow: #ffcf7a;
+
   --card-shadow: 0 20px 44px -18px rgba(30, 42, 68, 0.35);
 }
 
@@ -104,6 +107,14 @@ body {
   background: var(--petal-color, var(--rose));
   will-change: transform, opacity;
   animation: petal-fall var(--duration) linear var(--delay) infinite;
+}
+
+/* String lights — see StringLights.tsx. .bulb-halo is a static blurred glow
+   whose opacity is the only thing animated (JS), so the bloom scales
+   naturally with the bulb switching on. */
+.bulb-halo {
+  fill: var(--bulb-glow);
+  filter: blur(4px);
 }
 
 /* Our Story section — a flat, calm sky blue that stays put regardless of how
@@ -197,5 +208,14 @@ body {
 
   .petal {
     display: none;
+  }
+
+  .bulb-halo {
+    opacity: 0.55 !important;
+  }
+
+  circle.bulb-core {
+    fill: var(--bulb-glow) !important;
+    opacity: 1 !important;
   }
 }

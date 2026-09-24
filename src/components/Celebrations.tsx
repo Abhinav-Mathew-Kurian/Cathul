@@ -7,6 +7,8 @@ import { wedding, type ReceptionEvent } from "@/content/wedding";
 import { buildIcsContent, formatEventDateParts } from "@/lib/calendar";
 import { CalendarIcon, HeartIcon, PinIcon } from "./doodles";
 import { FallingPetals } from "./FallingPetals";
+import { Garland } from "./Garland";
+import { StringLights } from "./StringLights";
 
 const VIEWPORT = { once: true, margin: "-60px" } as const;
 
@@ -156,6 +158,7 @@ function ReceptionCard({ event, index }: { event: ReceptionEvent; index: number 
 export function Celebrations() {
   return (
     <section id="celebrations" className="celebrations-bg relative overflow-hidden px-5 pt-16 pb-16">
+      <StringLights seedOffset={200} />
       <FallingPetals count={8} seedOffset={200} className="absolute inset-0 z-0" />
 
       <div className="relative z-10 mx-auto max-w-md">
@@ -179,6 +182,8 @@ export function Celebrations() {
             ))}
           </p>
         </motion.div>
+
+        <Garland className="mt-6 -mx-5 h-10" />
 
         <div className="mt-10 flex flex-col gap-8">
           {wedding.celebrations.events.map((event, i) => (

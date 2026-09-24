@@ -6,6 +6,7 @@ import Image from "next/image";
 import { wedding, type GalleryPhoto } from "@/content/wedding";
 import { CameraIcon, HeartIcon } from "./doodles";
 import { FallingPetals } from "./FallingPetals";
+import { StringLights } from "./StringLights";
 
 const VIEWPORT = { once: true, margin: "-60px" } as const;
 
@@ -14,6 +15,7 @@ export function Gallery() {
 
   return (
     <section id="gallery" className="gallery-bg relative overflow-hidden px-5 pt-16 pb-6">
+      <StringLights seedOffset={400} />
       <FallingPetals count={8} seedOffset={400} className="absolute inset-0 z-0" />
 
       <div className="relative z-10 mx-auto max-w-md">

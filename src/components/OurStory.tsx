@@ -1,11 +1,12 @@
 "use client";
 
-import { Fragment } from "react";
-import { motion } from "motion/react";
+import { Fragment, useRef, type RefObject } from "react";
+import { motion, useScroll, useTransform } from "motion/react";
 import Image from "next/image";
 import { wedding, type StoryMoment } from "@/content/wedding";
 import { HeartIcon } from "./doodles";
 import { FallingPetals } from "./FallingPetals";
+import { StringLights } from "./StringLights";
 
 const VIEWPORT = { once: true, margin: "-60px" } as const;
 
@@ -96,6 +97,29 @@ function StoryTimelineItem({
   );
 }
 
+// A soft warm glow that drifts down the timeline's connecting line as the
+// section scrolls past — its blur is wide enough to wash over whichever
+// dot marker it's nearest, without needing to track individual moments.
+function TravelingGlow({ containerRef }: { containerRef: RefObject<HTMLDivElement | null> }) {
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start 0.8", "end 0.5"],
+  });
+  const top = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
+
+  return (
+    <motion.div
+      aria-hidden
+      className="pointer-events-none absolute left-[calc(7rem+0.75rem)] z-20 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full"
+      style={{
+        top,
+        background: "radial-gradient(circle, var(--bulb-glow) 0%, transparent 70%)",
+        filter: "blur(8px)",
+      }}
+    />
+  );
+}
+
 function StoryEnding() {
   return (
     <motion.div
@@ -141,8 +165,11 @@ function StoryEnding() {
 }
 
 export function OurStory() {
+  const gridRef = useRef<HTMLDivElement>(null);
+
   return (
     <section id="story" className="story-bg relative overflow-hidden px-5 pt-16 pb-6">
+      <StringLights seedOffset={100} />
       <FallingPetals count={10} seedOffset={100} className="absolute inset-0 z-0" />
 
       <div className="relative z-10 mx-auto max-w-md">
@@ -167,7 +194,7 @@ export function OurStory() {
           </p>
         </motion.div>
 
-        <div className="relative mt-12 grid grid-cols-[7rem_1.5rem_1fr] gap-x-2 gap-y-12">
+        <div ref={gridRef} className="relative mt-12 grid grid-cols-[7rem_1.5rem_1fr] gap-x-2 gap-y-12">
           {/* Explicit row count (not "1 / -1") — leaving the span implicit made
               some mobile WebViews auto-place the first row's items a row off
               from this line, breaking the very first entry's alignment. */}
@@ -176,6 +203,8 @@ export function OurStory() {
             className="col-start-2 mx-auto w-px bg-gradient-to-b from-dusk/50 via-rose/35 to-rose/55"
             style={{ gridRow: `1 / ${wedding.story.moments.length + 1}` }}
           />
+
+          <TravelingGlow containerRef={gridRef} />
 
           {wedding.story.moments.map((moment, i) => (
             <Fragment key={moment.year}>

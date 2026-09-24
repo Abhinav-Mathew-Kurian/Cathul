@@ -5,6 +5,7 @@ import { motion, useScroll, useTransform } from "motion/react";
 import { wedding } from "@/content/wedding";
 import { HeartIcon } from "./doodles";
 import { FallingPetals } from "./FallingPetals";
+import { StringLights } from "./StringLights";
 
 export function Note() {
   const paperRef = useRef<HTMLDivElement>(null);
@@ -29,6 +30,7 @@ export function Note() {
 
   return (
     <section className="note-bg relative overflow-hidden px-5 pt-16 pb-16">
+      <StringLights seedOffset={600} />
       <FallingPetals count={7} seedOffset={600} className="absolute inset-0 z-0" />
 
       <div className="relative z-10 mx-auto max-w-md">
