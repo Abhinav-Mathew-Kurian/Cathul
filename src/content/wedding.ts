@@ -218,6 +218,13 @@ export const wedding = {
         src: "/audio/song-5-nenjodu-cherthu.mp3",
         cover: null,
       },
+      {
+        id: "hridayam",
+        title: "Hridayam",
+        artist: "Keethan ft. Aromal Chekaver, daszi, Achayan",
+        src: "/audio/song-6-hridayam.mp3",
+        cover: null,
+      },
     ] satisfies Track[],
   },
 
