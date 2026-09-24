@@ -10,6 +10,7 @@ import { Music } from "@/components/Music";
 import { Note } from "@/components/Note";
 import { Help } from "@/components/Help";
 import { SiteFooter } from "@/components/SiteFooter";
+import { Credit } from "@/components/Credit";
 
 export default function Home() {
   return (
@@ -38,6 +39,7 @@ export default function Home() {
             <Note />
             <Help />
             <SiteFooter />
+            <Credit />
           </main>
         </div>
       </InvitationGate>
