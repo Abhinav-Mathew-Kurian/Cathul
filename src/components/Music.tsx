@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { wedding, type Track } from "@/content/wedding";
 import { HeartIcon } from "./doodles";
+import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
 import { StringLights } from "./StringLights";
 import { useMusic, useMusicProgress } from "./MusicProvider";
@@ -125,7 +126,7 @@ export function Music() {
         >
           <h2 className="flex items-center justify-center gap-2 font-hand text-4xl text-ink sm:text-5xl">
             {wedding.music.heading}
-            <HeartIcon className="h-5 w-5 text-rose" />
+            <BeatingHeart className="h-5 w-5 text-rose" />
           </h2>
           <p className="mt-2 font-body text-sm leading-relaxed text-ink/60">
             {wedding.music.subheading.map((line, i) => (

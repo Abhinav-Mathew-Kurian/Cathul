@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { animate, useMotionValue, type MotionValue } from "motion/react";
 import { wedding, type Track } from "@/content/wedding";
 
 const playlist: Track[] = wedding.music.playlist;
@@ -41,6 +42,61 @@ type MusicProgressValue = {
 // pulsing-ring animation from scratch and looked like a flicker.
 const MusicContext = createContext<MusicContextValue | null>(null);
 const MusicProgressContext = createContext<MusicProgressValue | null>(null);
+
+type MusicPulseValue = {
+  /** Smoothed bass energy of what's playing right now, 0–1 (0 while paused). */
+  level: MotionValue<number>;
+  /** 1 on each beat, decaying to 0 within ~0.4s — a ready-made "thump". */
+  beat: MotionValue<number>;
+  /** How many beats have passed — lets neighbours alternate on the beat. */
+  beatCount: MotionValue<number>;
+};
+
+// A third context, holding only motion values: these change every frame, but
+// motion writes them straight to the DOM, so subscribers never re-render.
+const MusicPulseContext = createContext<MusicPulseValue | null>(null);
+
+export function useMusicPulse() {
+  const ctx = useContext(MusicPulseContext);
+  if (!ctx) throw new Error("useMusicPulse must be used within a MusicProvider");
+  return ctx;
+}
+
+// Must match scripts/analyze-audio.mjs.
+const PULSE_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_";
+
+type PulseMap = { fps: number; level: Float32Array; beats: Float32Array };
+
+function decodePulse(raw: { fps: number; level: string; beats: number[] }): PulseMap {
+  const scale = PULSE_ALPHABET.length - 1;
+  return {
+    fps: raw.fps,
+    level: Float32Array.from(raw.level, (c) => Math.max(0, PULSE_ALPHABET.indexOf(c)) / scale),
+    beats: Float32Array.from(raw.beats, (frame) => frame / raw.fps),
+  };
+}
+
+/** Index of the last beat at or before `time`, or -1 — binary search, so seeking just works. */
+function lastBeatIndex(beats: Float32Array, time: number) {
+  let lo = 0;
+  let hi = beats.length - 1;
+  let found = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (beats[mid] <= time) {
+      found = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return found;
+}
+
+// "/audio/song-1-jhol.mp3" → "/audio/pulse/song-1-jhol.json"
+function pulseUrl(src: string) {
+  return src.replace(/\/([^/]+)\.mp3$/, "/pulse/$1.json");
+}
 
 export function useMusic() {
   const ctx = useContext(MusicContext);
@@ -80,6 +136,69 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const skipNextLoadRef = useRef(false);
 
   const currentTrack = playlist[trackIndex];
+
+  const level = useMotionValue(0);
+  const beat = useMotionValue(0);
+  const beatCount = useMotionValue(0);
+  const pulseMapRef = useRef<PulseMap | null>(null);
+
+  // Each track's pulse map is precomputed offline (scripts/analyze-audio.mjs)
+  // and read against audio.currentTime. The live audio is never routed
+  // through Web Audio, so a suspended AudioContext can't silence playback.
+  useEffect(() => {
+    let cancelled = false;
+    pulseMapRef.current = null;
+    fetch(pulseUrl(currentTrack.src))
+      .then((res) => (res.ok ? res.json() : null))
+      .then((raw) => {
+        if (!cancelled && raw) pulseMapRef.current = decodePulse(raw);
+      })
+      .catch(() => {
+        // No map for this track: the site simply doesn't pulse.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentTrack.src]);
+
+  useEffect(() => {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!isPlaying || reduceMotion) {
+      const easeOut = { duration: 0.8, ease: "easeOut" } as const;
+      const a = animate(level, 0, easeOut);
+      const b = animate(beat, 0, easeOut);
+      return () => {
+        a.stop();
+        b.stop();
+      };
+    }
+
+    let raf = 0;
+    let smoothed = level.get();
+    const tick = () => {
+      const audio = audioRef.current;
+      const map = pulseMapRef.current;
+      if (audio && map) {
+        const t = audio.currentTime;
+        const f = t * map.fps;
+        const i = Math.floor(f);
+        const a = map.level[i] ?? 0;
+        const target = a + ((map.level[i + 1] ?? a) - a) * (f - i);
+        // Fast attack, slow release — reads as "breathing", not flicker.
+        smoothed += (target - smoothed) * (target > smoothed ? 0.45 : 0.08);
+        level.set(smoothed);
+
+        const b = lastBeatIndex(map.beats, t);
+        beat.set(b < 0 ? 0 : Math.exp(-(t - map.beats[b]) / 0.13));
+        if (b + 1 !== beatCount.get()) beatCount.set(b + 1);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isPlaying, level, beat, beatCount]);
+
+  const pulseValue = useMemo<MusicPulseValue>(() => ({ level, beat, beatCount }), [level, beat, beatCount]);
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
@@ -268,8 +387,10 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   return (
     <MusicContext.Provider value={musicValue}>
       <MusicProgressContext.Provider value={progressValue}>
-        <audio ref={audioRef} src={currentTrack.src} preload="none" />
-        {children}
+        <MusicPulseContext.Provider value={pulseValue}>
+          <audio ref={audioRef} src={currentTrack.src} preload="none" />
+          {children}
+        </MusicPulseContext.Provider>
       </MusicProgressContext.Provider>
     </MusicContext.Provider>
   );

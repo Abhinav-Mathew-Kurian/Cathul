@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { useMusic } from "./MusicProvider";
+import { AnimatePresence, motion, useTransform } from "motion/react";
+import { useMusic, useMusicPulse } from "./MusicProvider";
 
 function PlayIcon({ className = "" }: { className?: string }) {
   return (
@@ -42,6 +42,16 @@ function MusicNoteIcon({ className = "" }: { className?: string }) {
     <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
       <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z" />
     </svg>
+  );
+}
+
+// A ring that ripples out of the button on every beat of the current song.
+function BeatRing() {
+  const { beat } = useMusicPulse();
+  const scale = useTransform(beat, [0, 1], [1.55, 1]);
+  const opacity = useTransform(beat, [0, 1], [0, 0.55]);
+  return (
+    <motion.span aria-hidden className="absolute inset-0 rounded-full bg-rose" style={{ scale, opacity }} />
   );
 }
 
@@ -106,14 +116,7 @@ export function MusicWidget() {
         whileTap={{ scale: 0.92 }}
         className="relative flex h-12 w-12 items-center justify-center rounded-full bg-rose text-white shadow-[var(--card-shadow)]"
       >
-        {isPlaying && (
-          <motion.span
-            aria-hidden
-            className="absolute inset-0 rounded-full bg-rose"
-            animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut" }}
-          />
-        )}
+        {isPlaying && <BeatRing />}
         <MusicNoteIcon className="relative h-5 w-5" />
       </motion.button>
     </div>

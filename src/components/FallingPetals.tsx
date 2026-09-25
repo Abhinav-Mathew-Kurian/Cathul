@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, type CSSProperties } from "react";
+import { useMemo, useRef, type CSSProperties } from "react";
+import { useMotionValueEvent } from "motion/react";
+import { useMusicPulse } from "./MusicProvider";
 
 // Deterministic pseudo-randomness (no Math.random) so this stays a pure
 // render — each petal's trajectory comes from its own index instead.
@@ -56,8 +58,26 @@ export function FallingPetals({
     });
   }, [count, seedOffset]);
 
+  // Petals ride the music: when a song swells, the whole flurry speeds up
+  // and flutters harder, then eases back to its lazy drift. updatePlaybackRate
+  // keeps each petal's position continuous, so nothing jumps. Throttled to
+  // meaningful changes — this fires every frame while music plays.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastRateRef = useRef(1);
+  const { level } = useMusicPulse();
+  useMotionValueEvent(level, "change", (value) => {
+    const rate = 1 + value * 1.4;
+    if (Math.abs(rate - lastRateRef.current) < 0.06 && !(rate === 1 && lastRateRef.current !== 1)) return;
+    lastRateRef.current = rate;
+    const container = containerRef.current;
+    if (!container || typeof container.getAnimations !== "function") return;
+    for (const animation of container.getAnimations({ subtree: true })) {
+      animation.updatePlaybackRate(rate);
+    }
+  });
+
   return (
-    <div className={`pointer-events-none overflow-hidden ${className}`} aria-hidden="true">
+    <div ref={containerRef} className={`pointer-events-none overflow-hidden ${className}`} aria-hidden="true">
       {petals.map((p) => (
         <span key={p.id} className="petal" style={p.style} />
       ))}

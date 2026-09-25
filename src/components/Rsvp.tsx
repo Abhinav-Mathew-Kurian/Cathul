@@ -1,10 +1,13 @@
 "use client";
 
-import { Fragment, useState, type FormEvent } from "react";
-import { motion } from "motion/react";
+import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { wedding } from "@/content/wedding";
+import { burst, CONFETTI_COLORS, haptic } from "@/lib/burst";
 import { HeartIcon } from "./doodles";
+import { JustMarriedCar } from "./JustMarriedCar";
+import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
 import { StringLights } from "./StringLights";
 
@@ -40,6 +43,29 @@ function isValidPhone(raw: string, countryCode: string): boolean {
   return digits.length >= 7 && digits.length <= 15;
 }
 
+// Confetti cannon out of the submit button, then two side cannons from the
+// bottom corners of the screen a beat later.
+function celebrate(origin: DOMRect | undefined) {
+  const x = origin ? origin.left + origin.width / 2 : window.innerWidth / 2;
+  const y = origin ? origin.top + origin.height / 2 : window.innerHeight * 0.7;
+  const shapes = ["confetti", "confetti", "petal", "heart"] as const;
+  burst({ x, y, count: 130, angle: -90, spread: 75, speed: 1300, shapes: [...shapes], colors: CONFETTI_COLORS, life: 3.8 });
+  window.setTimeout(() => {
+    const h = window.innerHeight;
+    burst({ x: -10, y: h, count: 60, angle: -60, spread: 30, speed: 1400, shapes: [...shapes], colors: CONFETTI_COLORS, life: 3.6 });
+    burst({ x: window.innerWidth + 10, y: h, count: 60, angle: -120, spread: 30, speed: 1400, shapes: [...shapes], colors: CONFETTI_COLORS, life: 3.6 });
+  }, 280);
+  haptic([30, 60, 30, 60, 50]);
+}
+
+// A declined RSVP still gets something warm: a few hearts floating up.
+function sendLove(origin: DOMRect | undefined) {
+  const x = origin ? origin.left + origin.width / 2 : window.innerWidth / 2;
+  const y = origin ? origin.top : window.innerHeight * 0.7;
+  burst({ x, y, count: 18, angle: -90, spread: 50, speed: 520, shapes: ["heart"], colors: ["#c1594a", "#e6a99b"], size: [10, 16], life: 3 });
+  haptic(20);
+}
+
 function validate(fields: {
   name: string;
   phone: string;
@@ -71,6 +97,9 @@ export function Rsvp() {
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [status, setStatus] = useState<Status>("idle");
+  const submitRef = useRef<HTMLButtonElement>(null);
+  const successRef = useRef<HTMLDivElement>(null);
+  const firstName = name.trim().split(/\s+/)[0];
 
   // "Both" is never stored as its own value — it's derived from whether
   // every real event is already selected. That way toggling either
@@ -78,6 +107,18 @@ export function Rsvp() {
   // both are, and it never has to be separately un-set), and the payload
   // sent to the server always lists the actual events chosen.
   const bothChecked = ALL_EVENT_IDS.length > 0 && ALL_EVENT_IDS.every((id) => events.includes(id));
+
+  // The thank-you card is far shorter than the form it replaces — without
+  // this, browsers with no scroll anchoring (iOS Safari) can leave it
+  // above the viewport while the confetti flies.
+  useEffect(() => {
+    if (status !== "done") return;
+    const id = window.setTimeout(
+      () => successRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }),
+      350
+    );
+    return () => window.clearTimeout(id);
+  }, [status]);
 
   function toggleEvent(id: string) {
     setEvents((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
@@ -111,6 +152,9 @@ export function Rsvp() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("failed");
+      const origin = submitRef.current?.getBoundingClientRect();
+      if (attendance === "yes") celebrate(origin);
+      else sendLove(origin);
       setStatus("done");
     } catch {
       setStatus("error");
@@ -132,7 +176,7 @@ export function Rsvp() {
         >
           <h2 className="flex items-center justify-center gap-2 font-hand text-4xl text-ink sm:text-5xl">
             {wedding.rsvp.heading}
-            <HeartIcon className="h-5 w-5 text-rose" />
+            <BeatingHeart className="h-5 w-5 text-rose" />
           </h2>
           <p className="mt-2 font-body text-sm leading-relaxed text-ink/60">
             {wedding.rsvp.subheading.map((line, i) => (
@@ -151,27 +195,61 @@ export function Rsvp() {
           transition={{ duration: 0.6, delay: 0.1 }}
           className="mt-8"
         >
+          {/* The form flips over like a card to reveal the thank-you on its back. */}
+          <div style={{ perspective: 1200 }}>
+          <AnimatePresence mode="wait" initial={false}>
           {status === "done" ? (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center rounded-3xl border border-ink/10 bg-white/70 px-6 py-10 text-center shadow-[var(--card-shadow)]"
+              key="done"
+              ref={successRef}
+              initial={{ rotateY: -90, opacity: 0.6 }}
+              animate={{ rotateY: 0, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 140, damping: 16 }}
+              className="flex flex-col items-center overflow-hidden rounded-3xl border border-ink/10 bg-white/70 px-6 pt-10 pb-4 text-center shadow-[var(--card-shadow)]"
             >
               <motion.div
                 initial={{ rotate: -20, scale: 0 }}
                 animate={{ rotate: -6, scale: 1 }}
-                transition={{ type: "spring", stiffness: 260, damping: 14 }}
+                transition={{ type: "spring", stiffness: 260, damping: 11, delay: 0.25 }}
                 className="flex h-16 w-16 items-center justify-center rounded-full bg-rose text-white"
               >
                 <HeartIcon className="h-7 w-7" />
               </motion.div>
-              <p className="mt-5 font-hand text-3xl text-ink">You&apos;re on the list!</p>
-              <p className="mt-2 font-body text-sm text-ink/65">
-                Can&apos;t wait to celebrate with you.
-              </p>
+              {/* Written out left to right, like it's being penned on the spot. */}
+              <motion.p
+                initial={{ clipPath: "inset(0 100% 0 0)" }}
+                animate={{ clipPath: "inset(0 0% 0 0)" }}
+                transition={{ duration: 1.3, delay: 0.45, ease: [0.5, 0, 0.3, 1] }}
+                className="mt-5 font-hand text-3xl text-ink"
+              >
+                {attendance === "yes"
+                  ? `See you there${firstName ? `, ${firstName}` : ""}!`
+                  : `We'll miss you${firstName ? `, ${firstName}` : ""}!`}
+              </motion.p>
+              <motion.p
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 1.5 }}
+                className="mt-2 font-body text-sm text-ink/65"
+              >
+                {attendance === "yes"
+                  ? "You're on the list. Can't wait to celebrate with you."
+                  : "Thank you for letting us know. You'll be in our hearts on the day."}
+              </motion.p>
+              {attendance === "yes" && (
+                <div className="-mx-6 mt-4 w-[calc(100%+3rem)]">
+                  <JustMarriedCar />
+                </div>
+              )}
             </motion.div>
           ) : (
-            <form onSubmit={handleSubmit} noValidate className="space-y-5 text-left">
+            <motion.form
+              key="form"
+              exit={{ rotateY: 90, opacity: 0.6, transition: { duration: 0.28, ease: "easeIn" } }}
+              onSubmit={handleSubmit}
+              noValidate
+              className="space-y-5 text-left"
+            >
               <div>
                 <label htmlFor="rsvp-name" className="font-body text-sm font-bold text-ink">
                   Your Name <span className="text-rose">*</span>
@@ -328,6 +406,7 @@ export function Rsvp() {
               </div>
 
               <button
+                ref={submitRef}
                 type="submit"
                 disabled={status === "submitting"}
                 className="w-full rounded-full bg-rose py-4 font-body text-sm font-bold text-white shadow-[var(--card-shadow)] transition hover:bg-rose-deep active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
@@ -340,8 +419,10 @@ export function Rsvp() {
                   Something went wrong. Please try again.
                 </p>
               )}
-            </form>
+            </motion.form>
           )}
+          </AnimatePresence>
+          </div>
         </motion.div>
 
         <motion.div

@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { motion, useScroll, useTransform } from "motion/react";
 import { wedding } from "@/content/wedding";
 import { HeartIcon } from "./doodles";
+import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
 import { StringLights } from "./StringLights";
 
@@ -42,7 +43,7 @@ export function Note() {
           className="flex items-center justify-center gap-2 text-center font-hand text-4xl text-ink sm:text-5xl"
         >
           {wedding.note.heading}
-          <HeartIcon className="h-5 w-5 text-rose" />
+          <BeatingHeart className="h-5 w-5 text-rose" />
         </motion.h2>
 
         <div ref={paperRef} className="relative mt-10" style={{ perspective: 1200 }}>

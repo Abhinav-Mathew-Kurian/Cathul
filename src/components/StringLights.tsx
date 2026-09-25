@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { motion } from "motion/react";
+import { motion, useTransform } from "motion/react";
+import { useMusicPulse } from "./MusicProvider";
 
 // Deterministic pseudo-randomness (no Math.random), same trick as
 // FallingPetals — each bulb's position comes from its own index so
@@ -20,6 +21,20 @@ const LIT = "#ffcf7a"; // matches --bulb-glow
 function wireY(x: number, amplitude: number) {
   const local = (((x % SWAG) + SWAG) % SWAG) / SWAG;
   return 15 + amplitude * Math.sin(local * Math.PI);
+}
+
+// An extra bloom on top of the lit bulb that swells with the music — neighbours
+// alternate which of them flashes on each beat, so the strand "chases" in
+// time with the song. Fully transparent while nothing is playing.
+function BulbFlare({ index }: { index: number }) {
+  const { level, beat, beatCount } = useMusicPulse();
+  const opacity = useTransform(() => {
+    const onBeat = (beatCount.get() + index) % 2 === 0;
+    return Math.min(1, level.get() * 0.35 + beat.get() * (onBeat ? 0.75 : 0.15));
+  });
+  const scale = useTransform(() => 0.8 + level.get() * 0.5 + beat.get() * 0.35);
+
+  return <motion.circle className="bulb-flare" r={10} style={{ opacity, scale }} />;
 }
 
 type StringLightsProps = {
@@ -62,7 +77,7 @@ export function StringLights({
     <div className={`pointer-events-none overflow-hidden ${className}`} aria-hidden="true">
       <svg viewBox={`0 0 ${WIDTH} 60`} className="h-full w-full" preserveAspectRatio="none">
         <path d={wirePath} fill="none" stroke="var(--ink-soft)" strokeOpacity={0.25} strokeWidth={1} />
-        {bulbs.map((b) => (
+        {bulbs.map((b, i) => (
           <g key={b.id} transform={`translate(${b.x.toFixed(1)} ${b.y.toFixed(1)})`}>
             <motion.circle
               className="bulb-halo"
@@ -80,6 +95,7 @@ export function StringLights({
               viewport={VIEWPORT}
               transition={{ duration: 0.5, delay: b.delay, ease: "easeOut" }}
             />
+            <BulbFlare index={i} />
           </g>
         ))}
       </svg>

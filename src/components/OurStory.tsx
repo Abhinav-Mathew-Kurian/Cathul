@@ -5,6 +5,7 @@ import { motion, useScroll, useTransform } from "motion/react";
 import Image from "next/image";
 import { wedding, type StoryMoment } from "@/content/wedding";
 import { HeartIcon } from "./doodles";
+import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
 import { StringLights } from "./StringLights";
 
@@ -182,7 +183,7 @@ export function OurStory() {
         >
           <h2 className="flex items-center justify-center gap-2 font-hand text-4xl text-ink sm:text-5xl">
             {wedding.story.heading}
-            <HeartIcon className="h-5 w-5 text-rose" />
+            <BeatingHeart className="h-5 w-5 text-rose" />
           </h2>
           <p className="mt-2 font-body text-sm leading-relaxed text-ink/60">
             {wedding.story.subheading.map((line, i) => (

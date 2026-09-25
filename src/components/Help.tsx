@@ -2,7 +2,8 @@
 
 import { motion } from "motion/react";
 import { wedding } from "@/content/wedding";
-import { CallIcon, HeartIcon } from "./doodles";
+import { CallIcon } from "./doodles";
+import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
 
 const VIEWPORT = { once: true, margin: "-60px" } as const;
@@ -92,7 +93,7 @@ export function Help() {
         >
           <h2 className="flex items-center justify-center gap-2 font-hand text-4xl text-ink sm:text-5xl">
             {wedding.help.heading}
-            <HeartIcon className="h-5 w-5 text-rose" />
+            <BeatingHeart className="h-5 w-5 text-rose" />
           </h2>
           <p className="mt-2 font-body text-sm text-ink/60">{wedding.help.subheading}</p>
         </motion.div>

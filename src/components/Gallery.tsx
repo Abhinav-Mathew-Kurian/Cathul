@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { wedding, type GalleryPhoto } from "@/content/wedding";
 import { CameraIcon, HeartIcon } from "./doodles";
+import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
 import { StringLights } from "./StringLights";
 
@@ -28,7 +29,7 @@ export function Gallery() {
         >
           <h2 className="flex items-center justify-center gap-2 font-hand text-4xl text-ink sm:text-5xl">
             {wedding.gallery.heading}
-            <HeartIcon className="h-5 w-5 text-rose" />
+            <BeatingHeart className="h-5 w-5 text-rose" />
           </h2>
           <p className="mt-2 font-body text-sm text-ink/60">{wedding.gallery.subheading}</p>
         </motion.div>
