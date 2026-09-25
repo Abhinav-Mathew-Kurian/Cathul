@@ -121,7 +121,7 @@ export const wedding = {
         id: "groom-reception",
         type: "groom",
         label: "Groom's Side Reception",
-        startsAt: "2026-11-17T11:30:00+05:30",
+        startsAt: "2026-11-16T18:00:00+05:30",
         venueName: "Suvarnabhumi Auditorium",
         address: "Kannur",
         fullAddress: "Manathana, Kalladi, Kannur, Kerala",
