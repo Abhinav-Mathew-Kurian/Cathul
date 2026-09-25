@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { motion, useTransform } from "motion/react";
+import { useId, useMemo, useRef } from "react";
+import { motion, useInView, useTransform } from "motion/react";
 import { useMusicPulse } from "./MusicProvider";
 
 // Deterministic pseudo-randomness (no Math.random), same trick as
@@ -26,7 +26,7 @@ function wireY(x: number, amplitude: number) {
 // An extra bloom on top of the lit bulb that swells with the music — neighbours
 // alternate which of them flashes on each beat, so the strand "chases" in
 // time with the song. Fully transparent while nothing is playing.
-function BulbFlare({ index }: { index: number }) {
+function BulbFlare({ index, fill }: { index: number; fill: string }) {
   const { level, beat, beatCount } = useMusicPulse();
   const opacity = useTransform(() => {
     const onBeat = (beatCount.get() + index) % 2 === 0;
@@ -34,7 +34,7 @@ function BulbFlare({ index }: { index: number }) {
   });
   const scale = useTransform(() => 0.8 + level.get() * 0.5 + beat.get() * 0.35);
 
-  return <motion.circle className="bulb-flare" r={10} style={{ opacity, scale }} />;
+  return <motion.circle r={13} fill={fill} style={{ opacity, scale }} />;
 }
 
 type StringLightsProps = {
@@ -73,15 +73,32 @@ export function StringLights({
     return { wirePath: d, bulbs };
   }, [count, seedOffset]);
 
+  // The glows are radial-gradient fills, not blur filters: a blurred SVG
+  // shape has to be re-rasterized every frame its opacity/scale changes,
+  // which, across every strand on the page, was a real cost while scrolling.
+  const glowId = `${useId().replace(/:/g, "")}-glow`;
+  const glow = `url(#${glowId})`;
+  // Beat flashes only run for strands actually on screen.
+  const ref = useRef<HTMLDivElement>(null);
+  const onScreen = useInView(ref, { margin: "80px" });
+
   return (
-    <div className={`pointer-events-none overflow-hidden ${className}`} aria-hidden="true">
+    <div ref={ref} className={`pointer-events-none overflow-hidden ${className}`} aria-hidden="true">
       <svg viewBox={`0 0 ${WIDTH} 60`} className="h-full w-full" preserveAspectRatio="none">
+        <defs>
+          <radialGradient id={glowId}>
+            <stop offset="0%" stopColor="var(--bulb-glow)" stopOpacity={1} />
+            <stop offset="45%" stopColor="var(--bulb-glow)" stopOpacity={0.55} />
+            <stop offset="100%" stopColor="var(--bulb-glow)" stopOpacity={0} />
+          </radialGradient>
+        </defs>
         <path d={wirePath} fill="none" stroke="var(--ink-soft)" strokeOpacity={0.25} strokeWidth={1} />
         {bulbs.map((b, i) => (
           <g key={b.id} transform={`translate(${b.x.toFixed(1)} ${b.y.toFixed(1)})`}>
             <motion.circle
               className="bulb-halo"
-              r={7}
+              r={9}
+              fill={glow}
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 0.55 }}
               viewport={VIEWPORT}
@@ -95,7 +112,7 @@ export function StringLights({
               viewport={VIEWPORT}
               transition={{ duration: 0.5, delay: b.delay, ease: "easeOut" }}
             />
-            <BulbFlare index={i} />
+            {onScreen && <BulbFlare index={i} fill={glow} />}
           </g>
         ))}
       </svg>

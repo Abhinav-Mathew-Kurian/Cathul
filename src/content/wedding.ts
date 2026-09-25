@@ -77,7 +77,7 @@ export const wedding = {
   story: {
     heading: "Our Story",
     subheading: ["Different paths. Same chaos.", "A better together."],
-    closing: ["Same people", "More madness", "Forever"],
+    closing: ["Same people", "More Happiness", "Forever"],
     endingImage: "/images/story/ending-sunset.png",
     moments: [
       {
@@ -141,7 +141,7 @@ export const wedding = {
         mapsUrl: "https://maps.google.com/?q=Grand+Bella+Auditorium+Kanjikuzhy+Kerala+685606",
         image: unsplash.idukkiHills,
         character: "/images/celebrations/bride.png",
-        note: ["Bride's side + everyone else", "Same people. Different city.", "Same madness!"],
+        note: ["Bride's side + everyone else", "Same people. Different city.", "Same Happiness!"],
         noteHeart: true,
       },
     ] satisfies ReceptionEvent[],
@@ -149,7 +149,7 @@ export const wedding = {
 
   rsvp: {
     heading: "RSVP",
-    subheading: ["Let us know if you're joining", "the madness!"],
+    subheading: ["Let us know if you're joining", "the Happiness!"],
     countryCodes: ["+91", "+1", "+44", "+971"],
     bothEventsLabel: "Both (Of course!)",
     bottomImage: "/images/rsvp/just-married.png",
@@ -239,7 +239,7 @@ export const wedding = {
     heading: "A Note From Us",
     body: [
       "We can't wait to celebrate this special chapter with our favourite people.",
-      "Thank you for being a part of our journey — for your love, support, and all the madness along the way.",
+      "Thank you for being a part of our journey — for your love, support, and all the Happiness along the way.",
       "See you soon!",
     ],
     closing: ["Same people", "Same chaos", "A brighter tomorrow"],

@@ -112,11 +112,13 @@ function TravelingGlow({ containerRef }: { containerRef: RefObject<HTMLDivElemen
   return (
     <motion.div
       aria-hidden
-      className="pointer-events-none absolute left-[calc(7rem+0.75rem)] z-20 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full"
+      className="pointer-events-none absolute left-[calc(7rem+0.75rem)] z-20 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full"
       style={{
         top,
-        background: "radial-gradient(circle, var(--bulb-glow) 0%, transparent 70%)",
-        filter: "blur(8px)",
+        // A wide, soft gradient reads the same as the old blur(8px) without
+        // re-running a blur filter on every scroll frame.
+        background:
+          "radial-gradient(circle, rgba(255,207,122,0.9) 0%, rgba(255,207,122,0.45) 30%, rgba(255,207,122,0) 68%)",
       }}
     />
   );
@@ -202,7 +204,7 @@ function IntertwinedHearts({ containerRef }: { containerRef: RefObject<HTMLDivEl
               animate={{ scale: 3, opacity: 0 }}
               transition={{ duration: 0.9, ease: "easeOut" }}
             />
-            <BeatingHeart className="h-7 w-7 text-rose drop-shadow-[0_2px_6px_rgba(193,89,74,0.45)]" />
+            <BeatingHeart className="h-7 w-7 text-rose" />
           </motion.div>
         ) : (
           <motion.div
@@ -212,10 +214,10 @@ function IntertwinedHearts({ containerRef }: { containerRef: RefObject<HTMLDivEl
             exit={{ opacity: 0, transition: { duration: 0.15 } }}
           >
             <motion.div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ x: hisX, scale: hisScale, zIndex: hisZ }}>
-              <BeatingHeart className="h-4 w-4 text-dusk-deep drop-shadow-[0_1px_3px_rgba(30,42,68,0.3)]" />
+              <BeatingHeart className="h-4 w-4 text-dusk-deep" />
             </motion.div>
             <motion.div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ x: herX, scale: herScale, zIndex: herZ }}>
-              <BeatingHeart className="h-4 w-4 text-rose drop-shadow-[0_1px_3px_rgba(30,42,68,0.3)]" />
+              <BeatingHeart className="h-4 w-4 text-rose" />
             </motion.div>
           </motion.div>
         )}

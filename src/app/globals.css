@@ -68,60 +68,18 @@ body {
   letter-spacing: 0.22em;
 }
 
-/* Falling petals — each <span class="petal"> carries its own randomized
-   drift, rotate, scale and timing custom properties (set once at mount,
-   see FallingPetals) so no two petals share a trajectory. */
-@keyframes petal-fall {
-  0% {
-    transform: translate3d(0, -10vh, 0) rotate(0deg) scale(var(--scale-start));
-    opacity: 0;
-  }
-  12% {
-    opacity: var(--opacity-peak);
-  }
-  35% {
-    transform: translate3d(calc(var(--drift) * 0.6), 35vh, 0)
-      rotate(calc(var(--rotate) * 0.4)) scale(var(--scale-mid));
-  }
-  65% {
-    transform: translate3d(calc(var(--drift) * -0.7), 70vh, 0)
-      rotate(calc(var(--rotate) * 0.75)) scale(var(--scale-end));
-  }
-  88% {
-    opacity: var(--opacity-peak);
-  }
-  100% {
-    transform: translate3d(calc(var(--drift) * 0.3), 112vh, 0)
-      rotate(var(--rotate)) scale(var(--scale-end));
-    opacity: 0;
-  }
-}
-
+/* Falling petals — each petal is animated by FallingPetals via the Web
+   Animations API, with concrete per-petal keyframes (compositor-friendly)
+   and only while its section is on screen. Un-animated petals stay hidden. */
 .petal {
   position: absolute;
   top: 0;
-  left: var(--start-x);
-  width: var(--size);
-  height: var(--size);
-  border-radius: var(--petal-radius, 70% 30% 65% 35%);
-  background: var(--petal-color, var(--rose));
-  will-change: transform, opacity;
-  animation: petal-fall var(--duration) linear var(--delay) infinite;
+  opacity: 0;
 }
 
-/* String lights — see StringLights.tsx. .bulb-halo is a static blurred glow
-   whose opacity is the only thing animated (JS), so the bloom scales
-   naturally with the bulb switching on. */
-.bulb-halo {
-  fill: var(--bulb-glow);
-  filter: blur(4px);
-}
-
-/* Music-driven bloom over each bulb (see BulbFlare). */
-.bulb-flare {
-  fill: var(--bulb-glow);
-  filter: blur(5px);
-}
+/* String lights — see StringLights.tsx. The halo is a radial-gradient glow
+   (fill set inline) whose opacity is the only thing animated, so the bloom
+   scales naturally with the bulb switching on. */
 
 /* Our Story section — a flat, calm sky blue that stays put regardless of how
    tall the page grows below it. The body's long page-wide gradient is driven
