@@ -64,7 +64,7 @@ const unsplash = {
 export const wedding = {
   couple: {
     groom: "Athul",
-    bride: "Cathy",
+    bride: "Cathi",
   },
 
   tagline: "Two families. Two celebrations. One crazy love story.",
@@ -260,7 +260,7 @@ export const wedding = {
       {
         label: "Bride's Side",
         contacts: [
-          { name: "Cathy", phone: "+91 70348 58948" },
+          { name: "Cathi", phone: "+91 70348 58948" },
           { name: "Bride's Father", phone: "+91 94957 64123" },
           { name: "Bride's Brother", phone: "+91 86066 68939" },
         ],
