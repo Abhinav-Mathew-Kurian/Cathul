@@ -36,7 +36,12 @@ export async function POST(request: NextRequest) {
     submittedAt: new Date().toISOString(),
   };
 
-  await saveRsvp(entry);
+  try {
+    await saveRsvp(entry);
+  } catch (error) {
+    console.error("Failed to save RSVP:", error);
+    return NextResponse.json({ error: "Could not save your RSVP right now." }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }

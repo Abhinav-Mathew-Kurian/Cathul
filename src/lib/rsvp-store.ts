@@ -29,7 +29,15 @@ let client: MongoClient | null = null;
 
 async function getCollection() {
   const uri = process.env.MONGODB_URI;
-  if (!uri) return null;
+  if (!uri) {
+    // Serverless hosts (Vercel) have a read-only filesystem, so the local
+    // file fallback can never work there — fail loudly with the real cause
+    // instead of an opaque ENOENT from mkdir.
+    if (process.env.VERCEL) {
+      throw new Error("MONGODB_URI is not set for this Vercel environment — add it in Project Settings → Environment Variables.");
+    }
+    return null;
+  }
 
   if (!client) {
     client = new MongoClient(uri);
