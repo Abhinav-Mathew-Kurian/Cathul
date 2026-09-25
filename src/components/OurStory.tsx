@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment, useRef, type RefObject } from "react";
-import { motion, useScroll, useTransform } from "motion/react";
+import { Fragment, useRef, useState, type RefObject } from "react";
+import { AnimatePresence, motion, useMotionValueEvent, useScroll, useSpring, useTransform } from "motion/react";
 import Image from "next/image";
 import { wedding, type StoryMoment } from "@/content/wedding";
+import { burst, haptic } from "@/lib/burst";
 import { HeartIcon } from "./doodles";
 import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
@@ -121,6 +122,108 @@ function TravelingGlow({ containerRef }: { containerRef: RefObject<HTMLDivElemen
   );
 }
 
+// Where the timeline's line runs: column 1 (7rem) + the column gap (0.5rem)
+// + half of the 1.5rem dot column.
+const LINE_X = "calc(7rem + 0.5rem + 0.75rem)";
+// How many times the two hearts cross over each other on the way down.
+const TWISTS = 5;
+
+// Two hearts — one for each of them — wind down the timeline around each
+// other as the story scrolls past, drifting closer with every milestone
+// until they meet at "Here we are" and become one.
+function IntertwinedHearts({ containerRef }: { containerRef: RefObject<HTMLDivElement | null> }) {
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start 0.75", "end 0.6"],
+  });
+  // A little spring lag so the hearts glide rather than stick to the scrollbar.
+  const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 26, mass: 0.5 });
+  const top = useTransform(progress, [0, 1], ["0%", "100%"]);
+
+  // Opposite sine waves around the line; the swing holds wide for most of the
+  // story and only closes to nothing near the end (1 - v², not 1 - v).
+  const weave = (v: number) => Math.sin(v * Math.PI * 2 * TWISTS) * 20 * (1 - v * v);
+  const hisX = useTransform(progress, (v) => weave(v));
+  const herX = useTransform(progress, (v) => -weave(v));
+  // Whichever heart is swinging toward the viewer draws on top, for a real over-under twist.
+  const hisZ = useTransform(progress, (v) => (Math.cos(v * Math.PI * 2 * TWISTS) > 0 ? 2 : 1));
+  const herZ = useTransform(progress, (v) => (Math.cos(v * Math.PI * 2 * TWISTS) > 0 ? 1 : 2));
+  const depth = (sign: number) => (v: number) => 1 + sign * Math.cos(v * Math.PI * 2 * TWISTS) * 0.2 * (1 - v * v);
+  const hisScale = useTransform(progress, depth(1));
+  const herScale = useTransform(progress, depth(-1));
+
+  const [together, setTogether] = useState(false);
+  const meetRef = useRef<HTMLDivElement>(null);
+
+  useMotionValueEvent(progress, "change", (v) => {
+    if (!together && v > 0.985) {
+      setTogether(true);
+      const rect = meetRef.current?.getBoundingClientRect();
+      if (rect) {
+        burst({
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+          count: 28,
+          speed: 420,
+          shapes: ["heart"],
+          colors: ["#c1594a", "#e6a99b", "#8ca4c4", "#f6d9ce"],
+          size: [8, 13],
+          life: 2.4,
+        });
+      }
+      haptic(18);
+    } else if (together && v < 0.85) {
+      // Scrolled back up: split them apart again so the meeting can replay.
+      setTogether(false);
+    }
+  });
+
+  return (
+    <motion.div
+      ref={meetRef}
+      aria-hidden
+      className="pointer-events-none absolute z-20 h-0 w-0"
+      style={{ top, left: LINE_X }}
+    >
+      <AnimatePresence initial={false}>
+        {together ? (
+          <motion.div
+            key="one"
+            className="absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
+            initial={{ scale: 0.3, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.3, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 420, damping: 12 }}
+          >
+            {/* A ring rippling out from the moment they meet. */}
+            <motion.span
+              className="absolute inset-0 rounded-full border-2 border-rose"
+              initial={{ scale: 0.8, opacity: 0.8 }}
+              animate={{ scale: 3, opacity: 0 }}
+              transition={{ duration: 0.9, ease: "easeOut" }}
+            />
+            <BeatingHeart className="h-7 w-7 text-rose drop-shadow-[0_2px_6px_rgba(193,89,74,0.45)]" />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="two"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.15 } }}
+          >
+            <motion.div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ x: hisX, scale: hisScale, zIndex: hisZ }}>
+              <BeatingHeart className="h-4 w-4 text-dusk-deep drop-shadow-[0_1px_3px_rgba(30,42,68,0.3)]" />
+            </motion.div>
+            <motion.div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ x: herX, scale: herScale, zIndex: herZ }}>
+              <BeatingHeart className="h-4 w-4 text-rose drop-shadow-[0_1px_3px_rgba(30,42,68,0.3)]" />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
 function StoryEnding() {
   return (
     <motion.div
@@ -206,6 +309,7 @@ export function OurStory() {
           />
 
           <TravelingGlow containerRef={gridRef} />
+          <IntertwinedHearts containerRef={gridRef} />
 
           {wedding.story.moments.map((moment, i) => (
             <Fragment key={moment.year}>
