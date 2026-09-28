@@ -110,7 +110,10 @@ export function Hero() {
   const revealed = useGateRevealed();
 
   return (
-    <section className="relative isolate flex h-svh min-h-[640px] flex-col overflow-hidden">
+    // At least one screen tall, but free to grow: a fixed h-svh clipped the
+    // card's countdown and "Scroll to Explore" button on shorter phones and
+    // on phones with a larger system font size.
+    <section className="relative isolate flex min-h-[max(640px,100svh)] flex-col overflow-hidden pb-10">
       {/* Layer 1 — tropical landscape backdrop, anchored to the bottom of the hero */}
       <div className="absolute inset-x-0 bottom-0 z-[1] h-[38%] w-full">
         <Image
