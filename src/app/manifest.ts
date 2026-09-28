@@ -3,10 +3,10 @@ import { wedding } from "@/content/wedding";
 
 // Lets guests "Add to Home Screen" with the couple's photo as the app icon.
 export default function manifest(): MetadataRoute.Manifest {
-  const { groom, bride } = wedding.couple;
+  const { groom, brideFull } = wedding.couple;
   return {
-    name: `${groom} & ${bride} are getting married`,
-    short_name: `${groom} & ${bride}`,
+    name: `${groom} & ${brideFull} are getting married`,
+    short_name: `${groom} & ${brideFull}`,
     description: wedding.tagline,
     start_url: "/",
     display: "standalone",

@@ -29,7 +29,7 @@ const caveat = Caveat({
   weight: ["500", "600", "700"],
 });
 
-const { groom, bride, brideFull } = wedding.couple;
+const { groom, brideFull } = wedding.couple;
 const couple = `${groom} & ${brideFull}`;
 const title = `${couple} are getting married! You are invited!`;
 
@@ -42,7 +42,7 @@ const receptionLines = wedding.celebrations.events.map((event) => {
   return `${weekday.slice(0, 3)}, ${day} ${monthName} ${year}, ${clock} at ${event.venueName}, ${event.address}`;
 });
 
-const description = `${couple} (${bride}) are getting married, and you're invited! ${wedding.tagline} Join us for the receptions: ${receptionLines.join("; ")}, Kerala. Read our story, browse the gallery, add the dates to your calendar, and RSVP.`;
+const description = `${couple} are getting married, and you're invited! ${wedding.tagline} Join us for the receptions: ${receptionLines.join("; ")}, Kerala. Read our story, browse the gallery, add the dates to your calendar, and RSVP.`;
 
 // The icon, apple-icon, favicon and share images come from the files in
 // src/app (icon.png, apple-icon.png, favicon.ico, opengraph-image.jpg,
@@ -54,15 +54,12 @@ export const metadata: Metadata = {
     template: `%s · ${couple}`,
   },
   description,
-  applicationName: `${groom} & ${bride}`,
+  applicationName: couple,
   category: "wedding",
   keywords: [
     `${groom} and ${brideFull}`,
-    `${groom} and ${bride}`,
     `${groom} weds ${brideFull}`,
-    `${groom} weds ${bride}`,
     `${groom} ${brideFull} wedding`,
-    `${groom} ${bride} wedding`,
     "athulwedscathy",
     "wedding invitation",
     "wedding reception",
@@ -80,7 +77,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: "/",
-    siteName: `${groom} & ${bride}`,
+    siteName: couple,
     title,
     description,
     locale: "en_IN",
@@ -95,7 +92,7 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
   },
-  appleWebApp: { title: `${groom} & ${bride}`, statusBarStyle: "default" },
+  appleWebApp: { title: couple, statusBarStyle: "default" },
   formatDetection: { telephone: false },
 };
 
@@ -119,7 +116,7 @@ const eventsJsonLd = {
     },
     organizer: [
       { "@type": "Person", name: groom },
-      { "@type": "Person", name: brideFull, alternateName: bride },
+      { "@type": "Person", name: brideFull },
     ],
   })),
 };
