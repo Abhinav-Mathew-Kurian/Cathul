@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
+import { appendRsvpToSheet } from "@/lib/rsvp-sheet";
 import { exportRsvpsAsCsv, saveRsvp, type RsvpEntry } from "@/lib/rsvp-store";
 
 export async function POST(request: NextRequest) {
@@ -42,6 +43,12 @@ export async function POST(request: NextRequest) {
     console.error("Failed to save RSVP:", error);
     return NextResponse.json({ error: "Could not save your RSVP right now." }, { status: 500 });
   }
+
+  // Copy it into the Google Sheet once the guest already has their answer —
+  // a slow or failing Sheet never delays or breaks the RSVP itself.
+  after(() =>
+    appendRsvpToSheet(entry).catch((error) => console.error("Failed to copy RSVP to Google Sheet:", error))
+  );
 
   return NextResponse.json({ ok: true });
 }
