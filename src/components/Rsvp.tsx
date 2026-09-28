@@ -260,7 +260,7 @@ export function Rsvp() {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Rahul Menon"
+                  placeholder="Your name"
                   aria-invalid={!!errors.name}
                   aria-describedby={errors.name ? "rsvp-name-error" : undefined}
                   className={`mt-1.5 w-full rounded-xl border bg-white/85 px-3.5 py-3 font-body text-sm text-ink placeholder:text-ink/35 focus:outline-none focus:border-rose ${
