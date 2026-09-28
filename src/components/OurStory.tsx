@@ -226,6 +226,48 @@ function IntertwinedHearts({ containerRef }: { containerRef: RefObject<HTMLDivEl
   );
 }
 
+// The couple's letter opens the story: each paragraph rises in on its own,
+// then the sign-off and their names, before the timeline takes over.
+function StoryLetter() {
+  const { body, signOff, signatureEmoji } = wedding.story.letter;
+
+  return (
+    <div className="mt-10 px-2 text-center">
+      <div className="space-y-4">
+        {body.map((line, i) => (
+          <motion.p
+            key={line}
+            initial={{ opacity: 0, y: 14 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={VIEWPORT}
+            transition={{ duration: 0.7, delay: Math.min(i * 0.08, 0.24), ease: "easeOut" }}
+            className={
+              i === 0
+                ? "font-display text-2xl leading-snug font-semibold text-ink italic"
+                : "font-display text-xl leading-relaxed text-ink/75 italic"
+            }
+          >
+            {line}
+          </motion.p>
+        ))}
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={VIEWPORT}
+        transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
+        className="mt-7"
+      >
+        <p className="font-hand text-xl text-ink/60">{signOff}</p>
+        <p className="mt-1 font-script text-4xl text-rose-deep">
+          {wedding.couple.groom} &amp; {wedding.couple.bride} {signatureEmoji}
+        </p>
+      </motion.div>
+    </div>
+  );
+}
+
 function StoryEnding() {
   return (
     <motion.div
@@ -299,6 +341,8 @@ export function OurStory() {
             ))}
           </p>
         </motion.div>
+
+        <StoryLetter />
 
         <div ref={gridRef} className="relative mt-12 grid grid-cols-[7rem_1.5rem_1fr] gap-x-2 gap-y-12">
           {/* Explicit row count (not "1 / -1") — leaving the span implicit made

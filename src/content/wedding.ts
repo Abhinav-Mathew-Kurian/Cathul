@@ -77,6 +77,19 @@ export const wedding = {
   story: {
     heading: "Our Story",
     subheading: ["Different paths. Same chaos.", "A better together."],
+    // The couple's own words — each entry renders as its own paragraph,
+    // signed off with their names beneath.
+    letter: {
+      body: [
+        "It’s been 10 years since we first met.",
+        "The journey hasn’t always been easy, but somehow, every twist and turn has been worth it.",
+        "We’re so glad that, after all these years, we found our way back home to each other. 🤍",
+        "And we’re even happier that you get to be a part of this beautiful new chapter and celebrate it with us.",
+        "We hope to see you there!",
+      ],
+      signOff: "With love,",
+      signatureEmoji: "💍✨",
+    },
     closing: ["Same people", "More Happiness", "Forever"],
     endingImage: "/images/story/ending-sunset.png",
     moments: [
