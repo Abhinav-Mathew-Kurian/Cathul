@@ -8,6 +8,7 @@ import {
   useScroll,
   useSpring,
   useTransform,
+  type Variants,
 } from "motion/react";
 import Image from "next/image";
 import { wedding, type StoryMoment } from "@/content/wedding";
@@ -50,42 +51,51 @@ function StoryVignette({ moment, tilt }: { moment: StoryMoment; tilt: number }) 
   );
 }
 
-// Deterministic 0–1 noise, so every letter scatters from the same spot on
-// the server render and in the browser (no hydration mismatch).
-function noise(seed: number) {
-  const x = Math.sin(seed * 12.9898) * 43758.5453;
-  return x - Math.floor(x);
-}
+// Where each word tumbles in from — a fixed table rather than random or
+// Math.sin noise, so the server HTML and every browser (Safari included)
+// agree exactly on the starting pose and hydration never has to fix it up.
+const TUMBLE = [
+  { x: -38, y: -26, r: -22 },
+  { x: 34, y: 20, r: 16 },
+  { x: -16, y: 32, r: 12 },
+  { x: 42, y: -28, r: -18 },
+  { x: -30, y: 12, r: 24 },
+  { x: 18, y: -34, r: -12 },
+  { x: -44, y: -8, r: 18 },
+  { x: 26, y: 30, r: -24 },
+];
 
-const LETTER_STAGGER = 0.022;
+const WORD_STAGGER = 0.07;
+const WORD_DURATION = 0.6;
 
-const letterVariants = {
-  hidden: (seed: number) => ({
-    opacity: 0,
-    x: (noise(seed) - 0.5) * 160,
-    y: (noise(seed + 1) - 0.5) * 140,
-    rotate: (noise(seed + 2) - 0.5) * 260,
-    scale: 0.2,
-  }),
-  shown: {
-    opacity: 1,
-    x: 0,
-    y: 0,
-    rotate: 0,
-    scale: 1,
-    transition: { type: "spring", stiffness: 240, damping: 13, mass: 0.7 },
+// One `transform` string (not separate x / y / rotate) plus opacity, so
+// Motion can hand the animation to the browser's compositor instead of
+// running it on the main thread — that's what keeps it smooth on phones.
+const wordVariants: Variants = {
+  hidden: (i: number) => {
+    const t = TUMBLE[i % TUMBLE.length];
+    return { opacity: 0, transform: `translate(${t.x}px, ${t.y}px) rotate(${t.r}deg) scale(0.5)` };
   },
-} as const;
+  shown: (i: number) => ({
+    opacity: 1,
+    transform: "translate(0px, 0px) rotate(0deg) scale(1)",
+    transition: {
+      delay: i * WORD_STAGGER,
+      duration: WORD_DURATION,
+      // back-out: overshoots a touch, then settles — a pop without a wobbly spring.
+      ease: [0.34, 1.56, 0.64, 1] as const,
+    },
+  }),
+};
 
-// In place of a title: the line is flung onto the page letter by letter —
-// each one tumbling in from its own scattered, spinning start — then a
-// hand-drawn scribble underlines it and a pop of hearts marks it landing.
+// In place of a title: the line is tossed onto the page word by word — each
+// tumbling in from its own angle and popping into place — then a hand-drawn
+// scribble underlines it and a pop of hearts marks it landing.
 function FlyingLine({ text, seed }: { text: string; seed: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const fired = useRef(false);
   const words = text.split(" ");
-  const letterCount = text.replace(/ /g, "").length;
-  const landsAt = letterCount * LETTER_STAGGER + 0.45;
+  const landsAt = (words.length - 1) * WORD_STAGGER + WORD_DURATION;
 
   function celebrate() {
     if (fired.current) return;
@@ -96,17 +106,15 @@ function FlyingLine({ text, seed }: { text: string; seed: number }) {
       burst({
         x: rect.left + rect.width * 0.85,
         y: rect.bottom - 6,
-        count: 12,
-        speed: 260,
+        count: 10,
+        speed: 240,
         shapes: ["heart"],
         colors: ["#c1594a", "#e6a99b", "#8ca4c4"],
         size: [6, 10],
-        life: 1.6,
+        life: 1.4,
       });
     }, landsAt * 1000);
   }
-
-  let letterIndex = 0;
 
   return (
     <motion.div
@@ -115,29 +123,15 @@ function FlyingLine({ text, seed }: { text: string; seed: number }) {
       whileInView="shown"
       viewport={VIEWPORT}
       onViewportEnter={celebrate}
-      transition={{ staggerChildren: LETTER_STAGGER }}
       className="relative"
     >
-      <p aria-label={text} className="font-hand text-[1.6rem] leading-[1.15] font-bold text-ink">
-        {words.map((word, w) => (
-          <Fragment key={w}>
-            {/* Words stay whole so lines only ever break between them. */}
-            <span aria-hidden className="inline-block whitespace-nowrap">
-              {Array.from(word).map((char) => {
-                const i = letterIndex++;
-                return (
-                  <motion.span
-                    key={i}
-                    custom={seed * 100 + i * 3}
-                    variants={letterVariants}
-                    className="inline-block"
-                  >
-                    {char}
-                  </motion.span>
-                );
-              })}
-            </span>
-            {w < words.length - 1 && " "}
+      <p className="font-hand text-[1.6rem] leading-[1.15] font-bold text-ink">
+        {words.map((word, i) => (
+          <Fragment key={i}>
+            <motion.span custom={i + seed} variants={wordVariants} className="inline-block">
+              {word}
+            </motion.span>
+            {i < words.length - 1 && " "}
           </Fragment>
         ))}
       </p>
@@ -151,7 +145,7 @@ function FlyingLine({ text, seed }: { text: string; seed: number }) {
           strokeLinecap="round"
           variants={{
             hidden: { pathLength: 0, opacity: 0 },
-            shown: { pathLength: 1, opacity: 0.7, transition: { delay: landsAt, duration: 0.6, ease: "easeOut" } },
+            shown: { pathLength: 1, opacity: 0.7, transition: { delay: landsAt - 0.15, duration: 0.5, ease: "easeOut" } },
           }}
         />
       </svg>
