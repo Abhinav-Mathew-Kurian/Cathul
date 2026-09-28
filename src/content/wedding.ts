@@ -68,6 +68,9 @@ export const wedding = {
     bride: "Cathy",
   },
 
+  // The live domain — canonical URL, share previews, sitemap and robots all build on it.
+  siteUrl: "https://athulwedscathy.in",
+
   tagline: "Two families. Two celebrations. One crazy love story.",
   weddingDate: "2026-11-16T18:00:00+05:30", // groom's side — drives the countdown
 

@@ -91,7 +91,9 @@ export function Gallery() {
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={VIEWPORT}
           transition={{ duration: 0.7, delay: 0.1, ease: "easeOut" }}
-          className="relative -mx-5 mt-8 aspect-[6/7] overflow-hidden sm:aspect-[3/2]"
+          // Same shape as the portrait itself (1164×1351) at every width, so
+          // nothing is ever cropped — a wider desktop frame cut their heads off.
+          className="relative -mx-5 mt-8 aspect-[1164/1351] overflow-hidden"
         >
           <Image
             src={wedding.gallery.endingImage}
@@ -99,7 +101,7 @@ export function Gallery() {
             fill
             sizes="(max-width: 640px) 100vw, 500px"
             loading="lazy"
-            className="object-cover object-top sm:object-center"
+            className="object-cover"
           />
           <div
             aria-hidden
