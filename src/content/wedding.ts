@@ -66,6 +66,8 @@ export const wedding = {
   couple: {
     groom: "Athul",
     bride: "Cathy",
+    /** Her full name — used where the formal invitation wording calls for it (title, share previews). */
+    brideFull: "Catherine",
   },
 
   // The live domain — canonical URL, share previews, sitemap and robots all build on it.

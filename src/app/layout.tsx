@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Caveat, Cormorant_Garamond, Jost, Sacramento } from "next/font/google";
 import "./globals.css";
 import { wedding } from "@/content/wedding";
+import { formatEventDateParts } from "@/lib/calendar";
 
 const cormorant = Cormorant_Garamond({
   variable: "--font-cormorant",
@@ -28,33 +29,53 @@ const caveat = Caveat({
   weight: ["500", "600", "700"],
 });
 
-const { groom, bride } = wedding.couple;
-const title = `${groom} & ${bride} are getting married`;
-const description = `${groom} & ${bride} are getting married! Join us for the receptions in Kannur (16 Nov 2026) and Idukki (22 Nov 2026) — our story, the celebrations, and how to RSVP.`;
+const { groom, bride, brideFull } = wedding.couple;
+const couple = `${groom} & ${brideFull}`;
+const title = `${couple} are getting married! You are invited!`;
+
+// e.g. "Mon, 16 Nov 2026, 6:00 PM at Suvarnabhumi Auditorium, Kannur" — built
+// from the same startsAt values the Celebrations cards use, so they never drift.
+const receptionLines = wedding.celebrations.events.map((event) => {
+  const { day, month, year, weekday, time } = formatEventDateParts(event.startsAt);
+  const clock = time.replace(" onwards", "");
+  const monthName = month.charAt(0) + month.slice(1).toLowerCase();
+  return `${weekday.slice(0, 3)}, ${day} ${monthName} ${year}, ${clock} at ${event.venueName}, ${event.address}`;
+});
+
+const description = `${couple} (${bride}) are getting married, and you're invited! ${wedding.tagline} Join us for the receptions: ${receptionLines.join("; ")}, Kerala. Read our story, browse the gallery, add the dates to your calendar, and RSVP.`;
 
 // The icon, apple-icon, favicon and share images come from the files in
 // src/app (icon.png, apple-icon.png, favicon.ico, opengraph-image.jpg,
-// twitter-image.jpg) — Next.js wires those into <head> on its own.
+// twitter-image.jpg + their .alt.txt) — Next.js wires those into <head> on its own.
 export const metadata: Metadata = {
   metadataBase: new URL(wedding.siteUrl),
   title: {
     default: title,
-    template: `%s · ${groom} & ${bride}`,
+    template: `%s · ${couple}`,
   },
   description,
   applicationName: `${groom} & ${bride}`,
+  category: "wedding",
   keywords: [
+    `${groom} and ${brideFull}`,
     `${groom} and ${bride}`,
+    `${groom} weds ${brideFull}`,
     `${groom} weds ${bride}`,
+    `${groom} ${brideFull} wedding`,
     `${groom} ${bride} wedding`,
+    "athulwedscathy",
     "wedding invitation",
     "wedding reception",
-    "Kannur",
-    "Idukki",
     "Kerala wedding",
+    "Kannur wedding reception",
+    "Idukki wedding reception",
+    ...wedding.celebrations.events.map((event) => event.venueName),
+    "November 2026 wedding",
     "RSVP",
   ],
-  authors: [{ name: `${groom} & ${bride}` }],
+  authors: [{ name: couple, url: wedding.siteUrl }],
+  creator: couple,
+  publisher: couple,
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
@@ -69,7 +90,11 @@ export const metadata: Metadata = {
     title,
     description,
   },
-  robots: { index: true, follow: true },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+  },
   appleWebApp: { title: `${groom} & ${bride}`, statusBarStyle: "default" },
   formatDetection: { telephone: false },
 };
@@ -80,19 +105,22 @@ const eventsJsonLd = {
   "@context": "https://schema.org",
   "@graph": wedding.celebrations.events.map((event) => ({
     "@type": "Event",
-    name: `${groom} & ${bride} — ${event.label}`,
+    name: `${couple} — ${event.label}`,
     startDate: event.startsAt,
     eventStatus: "https://schema.org/EventScheduled",
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
     image: [`${wedding.siteUrl}/opengraph-image.jpg`],
-    description: event.note.join(" "),
+    description: `${couple} are getting married! ${event.note.map((line) => (/[.!?]$/.test(line) ? line : `${line}.`)).join(" ")}`,
     url: wedding.siteUrl,
     location: {
       "@type": "Place",
       name: event.venueName,
       address: { "@type": "PostalAddress", streetAddress: event.fullAddress, addressRegion: "Kerala", addressCountry: "IN" },
     },
-    organizer: { "@type": "Person", name: `${groom} & ${bride}`, url: wedding.siteUrl },
+    organizer: [
+      { "@type": "Person", name: groom },
+      { "@type": "Person", name: brideFull, alternateName: bride },
+    ],
   })),
 };
 
