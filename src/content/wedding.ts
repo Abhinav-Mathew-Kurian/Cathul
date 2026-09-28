@@ -175,6 +175,8 @@ export const wedding = {
       { id: "g8", caption: "Mirror selfie o'clock", image: "/images/gallery/g8-cafe-mirror.jpg" },
       { id: "g9", caption: "Family & flowers", image: "/images/gallery/g9-roses-family.jpg" },
       { id: "g10", caption: "On the road again", image: "/images/gallery/g10-street-backpacks.jpg" },
+      { id: "g11", caption: "Holding on tight", image: "/images/gallery/g11-holding-on.jpg" },
+      { id: "g12", caption: "Blue skies, big smiles", image: "/images/gallery/g12-blue-skies.jpg" },
     ] satisfies GalleryPhoto[],
     closing: "Collecting moments for a lifetime!",
     endingImage: "/images/gallery/ending-portrait.png",
@@ -185,8 +187,8 @@ export const wedding = {
     subheading: ["Because every good story", "has a soundtrack!"],
     speechBubble: "Better with music, right?",
     bottomImage: "/images/music/temple-archway.png",
-    // Cover art is a photo from the same gallery shoot, not used elsewhere
-    // in the gallery grid, composited with the title/artist baked in.
+    // Cover art is a square crop of one of the couple's photos (mostly their
+    // older, pre-gallery ones — college days, even baby pictures).
     // Fully data-driven — adding another track later is just another entry.
     playlist: [
       {
@@ -216,13 +218,6 @@ export const wedding = {
         artist: "Abhijeet Srivastava, Shayra Apoorva",
         src: "/audio/song-4-rehbara.mp3",
         cover: "/images/music/covers/song-4-rehbara.jpg",
-      },
-      {
-        id: "nenjodu-cherthu",
-        title: "Nenjodu Cherthu",
-        artist: "Yuvvh",
-        src: "/audio/song-5-nenjodu-cherthu.mp3",
-        cover: "/images/music/covers/song-5-nenjodu-cherthu.jpg",
       },
       {
         id: "hridayam",
