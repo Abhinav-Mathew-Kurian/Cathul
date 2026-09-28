@@ -7,9 +7,10 @@
 
 export type StoryMoment = {
   year: string;
+  /** Not shown on the page — used as the illustration's alt text. */
   title: string;
-  /** Each entry renders as its own line — a scrapbook-style short caption. */
-  description: string[];
+  /** One line beside the illustration — it flies in letter by letter in place of a title. */
+  text: string;
   /** Real per-stage illustration, dropped in later. Renders a soft placeholder vignette until then. */
   image: string | null;
 };
@@ -77,50 +78,37 @@ export const wedding = {
   story: {
     heading: "Our Story",
     subheading: ["Different paths. Same chaos.", "A better together."],
-    // The couple's own words — each entry renders as its own paragraph,
-    // signed off with their names beneath.
-    letter: {
-      body: [
-        "It’s been 10 years since we first met.",
-        "The journey hasn’t always been easy, but somehow, every twist and turn has been worth it.",
-        "We’re so glad that, after all these years, we found our way back home to each other. 🤍",
-        "And we’re even happier that you get to be a part of this beautiful new chapter and celebrate it with us.",
-        "We hope to see you there!",
-      ],
-      signOff: "With love,",
-      signatureEmoji: "💍✨",
-    },
     closing: ["Same people", "More Happiness", "Forever"],
     endingImage: "/images/story/ending-sunset.png",
     moments: [
       {
         year: "2018",
         title: "First Met",
-        description: ["College mutuals", "(and a lot of chaya )"],
+        text: "From college corridors to finding home in each other",
         image: "/images/story/first-met.png",
       },
       {
         year: "2019",
         title: "Actually Talked",
-        description: ["Turned out we like", "the same dumb jokes(NOPE!)"],
+        text: "Two pseudo-intellectuals. One very long story",
         image: "/images/story/became-friends.png",
       },
       {
         year: "2020",
         title: "Became Friends",
-        description: ["Long conversations.", "Zero plans to stop"],
+        text: "From “Do you know this?” to “I know you.”",
         image: "/images/story/something-more.png",
       },
       {
         year: "2022",
         title: "Something More",
-        description: ["We lost count", "of time...(And apparently, sleep too)"],
+        text: "Ten years, countless conversations, one home",
         image: "/images/story/looking-at-each-other.png",
       },
       {
         year: "2026",
         title: "Here We Are",
-        description: ["Still the same idiots.", "Just luckier."],
+        text: "Started with a conversation. Ended with forever.",
         image: "/images/story/here-we-are.png",
       },
     ] satisfies StoryMoment[],
@@ -147,7 +135,7 @@ export const wedding = {
         id: "bride-reception",
         type: "bride",
         label: "Bride's Side Reception",
-        startsAt: "2026-11-22T18:00:00+05:30",
+        startsAt: "2026-11-22T17:00:00+05:30",
         venueName: "Grand Bella Auditorium",
         address: "Idukki",
         fullAddress: "Kanjikuzhy, Kerala 685606",
@@ -250,11 +238,17 @@ export const wedding = {
 
   note: {
     heading: "A Note From Us",
+    // The couple's own words — each entry renders as its own paragraph,
+    // signed off with their names beneath.
     body: [
-      "We can't wait to celebrate this special chapter with our favourite people.",
-      "Thank you for being a part of our journey — for your love, support, and all the Happiness along the way.",
-      "See you soon!",
+      "It’s been 10 years since we first met.",
+      "The journey hasn’t always been easy, but somehow, every twist and turn has been worth it.",
+      "We’re so glad that, after all these years, we found our way back home to each other. 🤍",
+      "And we’re even happier that you get to be a part of this beautiful new chapter and celebrate it with us.",
+      "We hope to see you there!",
     ],
+    signOff: "With love,",
+    signatureEmoji: "💍✨",
     closing: ["Same people", "Same chaos", "A brighter tomorrow"],
   },
 

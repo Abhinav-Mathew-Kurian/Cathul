@@ -1,7 +1,14 @@
 "use client";
 
 import { Fragment, useRef, useState, type RefObject } from "react";
-import { AnimatePresence, motion, useMotionValueEvent, useScroll, useSpring, useTransform } from "motion/react";
+import {
+  AnimatePresence,
+  motion,
+  useMotionValueEvent,
+  useScroll,
+  useSpring,
+  useTransform,
+} from "motion/react";
 import Image from "next/image";
 import { wedding, type StoryMoment } from "@/content/wedding";
 import { burst, haptic } from "@/lib/burst";
@@ -43,6 +50,115 @@ function StoryVignette({ moment, tilt }: { moment: StoryMoment; tilt: number }) 
   );
 }
 
+// Deterministic 0–1 noise, so every letter scatters from the same spot on
+// the server render and in the browser (no hydration mismatch).
+function noise(seed: number) {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+const LETTER_STAGGER = 0.022;
+
+const letterVariants = {
+  hidden: (seed: number) => ({
+    opacity: 0,
+    x: (noise(seed) - 0.5) * 160,
+    y: (noise(seed + 1) - 0.5) * 140,
+    rotate: (noise(seed + 2) - 0.5) * 260,
+    scale: 0.2,
+  }),
+  shown: {
+    opacity: 1,
+    x: 0,
+    y: 0,
+    rotate: 0,
+    scale: 1,
+    transition: { type: "spring", stiffness: 240, damping: 13, mass: 0.7 },
+  },
+} as const;
+
+// In place of a title: the line is flung onto the page letter by letter —
+// each one tumbling in from its own scattered, spinning start — then a
+// hand-drawn scribble underlines it and a pop of hearts marks it landing.
+function FlyingLine({ text, seed }: { text: string; seed: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const fired = useRef(false);
+  const words = text.split(" ");
+  const letterCount = text.replace(/ /g, "").length;
+  const landsAt = letterCount * LETTER_STAGGER + 0.45;
+
+  function celebrate() {
+    if (fired.current) return;
+    fired.current = true;
+    window.setTimeout(() => {
+      const rect = ref.current?.getBoundingClientRect();
+      if (!rect) return;
+      burst({
+        x: rect.left + rect.width * 0.85,
+        y: rect.bottom - 6,
+        count: 12,
+        speed: 260,
+        shapes: ["heart"],
+        colors: ["#c1594a", "#e6a99b", "#8ca4c4"],
+        size: [6, 10],
+        life: 1.6,
+      });
+    }, landsAt * 1000);
+  }
+
+  let letterIndex = 0;
+
+  return (
+    <motion.div
+      ref={ref}
+      initial="hidden"
+      whileInView="shown"
+      viewport={VIEWPORT}
+      onViewportEnter={celebrate}
+      transition={{ staggerChildren: LETTER_STAGGER }}
+      className="relative"
+    >
+      <p aria-label={text} className="font-hand text-[1.6rem] leading-[1.15] font-bold text-ink">
+        {words.map((word, w) => (
+          <Fragment key={w}>
+            {/* Words stay whole so lines only ever break between them. */}
+            <span aria-hidden className="inline-block whitespace-nowrap">
+              {Array.from(word).map((char) => {
+                const i = letterIndex++;
+                return (
+                  <motion.span
+                    key={i}
+                    custom={seed * 100 + i * 3}
+                    variants={letterVariants}
+                    className="inline-block"
+                  >
+                    {char}
+                  </motion.span>
+                );
+              })}
+            </span>
+            {w < words.length - 1 && " "}
+          </Fragment>
+        ))}
+      </p>
+
+      <svg aria-hidden viewBox="0 0 200 12" preserveAspectRatio="none" className="mt-1 h-2.5 w-4/5 overflow-visible">
+        <motion.path
+          d="M2 8 C 40 2, 70 11, 105 6 S 170 2, 198 7"
+          fill="none"
+          stroke="var(--rose)"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          variants={{
+            hidden: { pathLength: 0, opacity: 0 },
+            shown: { pathLength: 1, opacity: 0.7, transition: { delay: landsAt, duration: 0.6, ease: "easeOut" } },
+          }}
+        />
+      </svg>
+    </motion.div>
+  );
+}
+
 function StoryTimelineItem({
   moment,
   tilt,
@@ -77,24 +193,9 @@ function StoryTimelineItem({
         />
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 18 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={VIEWPORT}
-        transition={{ duration: 0.65, delay: delay + 0.3, ease: "easeOut" }}
-        className="col-start-3 pt-3"
-        style={{ gridRow: row }}
-      >
-        <h3 className="font-hand text-[1.7rem] leading-none font-bold text-ink">{moment.title}</h3>
-        <p className="mt-1.5 font-body text-sm leading-relaxed text-ink/60">
-          {moment.description.map((line, i) => (
-            <span key={line}>
-              {line}
-              {i < moment.description.length - 1 && <br />}
-            </span>
-          ))}
-        </p>
-      </motion.div>
+      <div className="col-start-3 pt-1" style={{ gridRow: row }}>
+        <FlyingLine text={moment.text} seed={row} />
+      </div>
     </>
   );
 }
@@ -226,48 +327,6 @@ function IntertwinedHearts({ containerRef }: { containerRef: RefObject<HTMLDivEl
   );
 }
 
-// The couple's letter opens the story: each paragraph rises in on its own,
-// then the sign-off and their names, before the timeline takes over.
-function StoryLetter() {
-  const { body, signOff, signatureEmoji } = wedding.story.letter;
-
-  return (
-    <div className="mt-10 px-2 text-center">
-      <div className="space-y-4">
-        {body.map((line, i) => (
-          <motion.p
-            key={line}
-            initial={{ opacity: 0, y: 14 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={VIEWPORT}
-            transition={{ duration: 0.7, delay: Math.min(i * 0.08, 0.24), ease: "easeOut" }}
-            className={
-              i === 0
-                ? "font-display text-2xl leading-snug font-semibold text-ink italic"
-                : "font-display text-xl leading-relaxed text-ink/75 italic"
-            }
-          >
-            {line}
-          </motion.p>
-        ))}
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={VIEWPORT}
-        transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
-        className="mt-7"
-      >
-        <p className="font-hand text-xl text-ink/60">{signOff}</p>
-        <p className="mt-1 font-script text-4xl text-rose-deep">
-          {wedding.couple.groom} &amp; {wedding.couple.bride} {signatureEmoji}
-        </p>
-      </motion.div>
-    </div>
-  );
-}
-
 function StoryEnding() {
   return (
     <motion.div
@@ -341,8 +400,6 @@ export function OurStory() {
             ))}
           </p>
         </motion.div>
-
-        <StoryLetter />
 
         <div ref={gridRef} className="relative mt-12 grid grid-cols-[7rem_1.5rem_1fr] gap-x-2 gap-y-12">
           {/* Explicit row count (not "1 / -1") — leaving the span implicit made

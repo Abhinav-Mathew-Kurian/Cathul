@@ -1,12 +1,51 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useScroll, useTransform } from "motion/react";
+import { motion, useScroll, useTransform, type MotionValue } from "motion/react";
 import { wedding } from "@/content/wedding";
 import { HeartIcon } from "./doodles";
 import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
 import { StringLights } from "./StringLights";
+
+// One word of the letter. It sits faint on the page like pencil, then inks
+// in as its paragraph's scroll progress reaches its slot in the sentence.
+function InkedWord({ word, progress, range }: { word: string; progress: MotionValue<number>; range: [number, number] }) {
+  const opacity = useTransform(progress, range, [0.14, 1]);
+  const y = useTransform(progress, range, [4, 0]);
+
+  return (
+    <motion.span style={{ opacity, y }} className="inline-block">
+      {word}
+    </motion.span>
+  );
+}
+
+// Each paragraph tracks its own position in the viewport, so the words ink
+// in right where the reader's eye is — however tall the letter grows.
+function InkedParagraph({ text }: { text: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start 0.88", "end 0.6"],
+  });
+  const words = text.split(" ");
+
+  return (
+    <p ref={ref} className="font-hand text-2xl leading-relaxed text-ink/85">
+      {words.map((word, i) => {
+        const start = i / words.length;
+        const end = Math.min(start + 1.5 / words.length, 1);
+        return (
+          <span key={i}>
+            <InkedWord word={word} progress={scrollYProgress} range={[start, end]} />
+            {i < words.length - 1 && " "}
+          </span>
+        );
+      })}
+    </p>
+  );
+}
 
 export function Note() {
   const paperRef = useRef<HTMLDivElement>(null);
@@ -22,12 +61,6 @@ export function Note() {
   const rotateX = useTransform(scrollYProgress, [0, 0.33, 0.66, 1], [-55, -22, -6, 0]);
   const scaleY = useTransform(scrollYProgress, [0, 0.33, 0.66, 1], [0.6, 0.8, 0.92, 1]);
   const paperOpacity = useTransform(scrollYProgress, [0, 0.2], [0, 1]);
-
-  const line1Opacity = useTransform(scrollYProgress, [0.15, 0.35], [0, 1]);
-  const line2Opacity = useTransform(scrollYProgress, [0.4, 0.6], [0, 1]);
-  const line3Opacity = useTransform(scrollYProgress, [0.65, 0.82], [0, 1]);
-  const signatureOpacity = useTransform(scrollYProgress, [0.85, 1], [0, 1]);
-  const signatureY = useTransform(scrollYProgress, [0.85, 1], [10, 0]);
 
   return (
     <section className="note-bg relative overflow-hidden px-5 pt-16 pb-16">
@@ -60,33 +93,24 @@ export function Note() {
             className="torn-paper-top ruled-paper relative bg-cream px-7 pt-10 pb-9 shadow-[var(--card-shadow)]"
           >
             <div className="space-y-4">
-              <motion.p
-                style={{ opacity: line1Opacity }}
-                className="font-hand text-2xl leading-relaxed text-ink/85"
-              >
-                {wedding.note.body[0]}
-              </motion.p>
-              <motion.p
-                style={{ opacity: line2Opacity }}
-                className="font-hand text-2xl leading-relaxed text-ink/85"
-              >
-                {wedding.note.body[1]}
-              </motion.p>
-              <motion.p
-                style={{ opacity: line3Opacity }}
-                className="font-hand text-2xl leading-relaxed text-ink/85"
-              >
-                {wedding.note.body[2]}
-              </motion.p>
+              {wedding.note.body.map((paragraph) => (
+                <InkedParagraph key={paragraph} text={paragraph} />
+              ))}
             </div>
 
-            <motion.p
-              style={{ opacity: signatureOpacity, y: signatureY }}
-              className="mt-7 flex items-center gap-2 font-script text-4xl text-rose-deep"
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-60px" }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="mt-7"
             >
-              {wedding.couple.groom} &amp; {wedding.couple.bride}
-              <HeartIcon className="h-4 w-4 flex-shrink-0 text-rose" />
-            </motion.p>
+              <p className="font-hand text-2xl text-ink/70">{wedding.note.signOff}</p>
+              <p className="mt-1 flex items-center gap-2 font-script text-4xl text-rose-deep">
+                {wedding.couple.groom} &amp; {wedding.couple.bride}
+                <span className="font-body text-2xl">{wedding.note.signatureEmoji}</span>
+              </p>
+            </motion.div>
           </motion.div>
         </div>
 
