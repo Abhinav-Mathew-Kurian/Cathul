@@ -34,15 +34,17 @@ function Wheel({ cx }: { cx: number }) {
 
 // A little retro getaway car, drawn facing right, with the couple in the
 // windows, a "Just Married" plate on the back and tin cans on strings.
-function CarArt() {
+// The cans and suspension only bounce while it's `moving` — they used to
+// keep going forever after the car had already driven out of sight.
+function CarArt({ moving }: { moving: boolean }) {
   return (
     <svg viewBox="-40 0 260 90" className="h-full w-full overflow-visible" aria-hidden>
       {/* Strings + cans bouncing along behind */}
       {CANS.map((can) => (
         <motion.g
           key={can.x}
-          animate={{ y: [0, -5, 0, -2, 0] }}
-          transition={{ duration: 0.42, repeat: Infinity, delay: can.delay, ease: "easeInOut" }}
+          animate={moving ? { y: [0, -5, 0, -2, 0] } : { y: 0 }}
+          transition={moving ? { duration: 0.42, repeat: Infinity, delay: can.delay, ease: "easeInOut" } : { duration: 0 }}
         >
           <path d={`M26 58 Q ${(26 + can.x) / 2} ${can.y + 8} ${can.x + 8} ${can.y + 4}`} fill="none" stroke="var(--ink-soft)" strokeWidth="0.9" />
           <rect x={can.x} y={can.y} width="8" height="10" rx="1.5" fill="#c9ced8" stroke="var(--ink-soft)" strokeWidth="0.8" />
@@ -51,7 +53,10 @@ function CarArt() {
       ))}
 
       {/* Body bobs on its suspension */}
-      <motion.g animate={{ y: [0, -1.6, 0] }} transition={{ duration: 0.34, repeat: Infinity, ease: "easeInOut" }}>
+      <motion.g
+        animate={moving ? { y: [0, -1.6, 0] } : { y: 0 }}
+        transition={moving ? { duration: 0.34, repeat: Infinity, ease: "easeInOut" } : { duration: 0 }}
+      >
         <path
           d="M28 64 L28 50 Q29 42 40 40 L64 38 L82 22 Q86 18 94 18 L138 18 Q147 18 153 25 L168 40 L194 44 Q205 46 205 56 L205 64 Z"
           fill="var(--rose)"
@@ -84,11 +89,15 @@ function CarArt() {
 export function JustMarriedCar() {
   // Tapping the car sends it round again.
   const [lap, setLap] = useState(0);
+  const [moving, setMoving] = useState(true);
 
   return (
     <button
       type="button"
-      onClick={() => setLap((n) => n + 1)}
+      onClick={() => {
+        setLap((n) => n + 1);
+        setMoving(true);
+      }}
       aria-label="Just Married car — tap to send it round again"
       className="relative block h-28 w-full overflow-hidden"
     >
@@ -98,6 +107,7 @@ export function JustMarriedCar() {
         initial={{ x: "-150%" }}
         animate={{ x: ["-150%", "0%", "0%", "170%"] }}
         transition={{ ...DRIVE, ease: DRIVE_EASE }}
+        onAnimationComplete={() => setMoving(false)}
       >
         {/* Exhaust hearts puffing out the back while it waits */}
         {[0, 1, 2].map((i) => (
@@ -121,7 +131,7 @@ export function JustMarriedCar() {
           beep beep!
         </motion.span>
 
-        <CarArt />
+        <CarArt moving={moving} />
       </motion.span>
     </button>
   );

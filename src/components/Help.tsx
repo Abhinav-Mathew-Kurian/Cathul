@@ -8,6 +8,15 @@ import { FallingPetals } from "./FallingPetals";
 
 const VIEWPORT = { once: true, margin: "-60px" } as const;
 
+const WIGGLE_ANGLES = [0, -18, 14, -10, 6, 0];
+const WIGGLE_S = 0.7;
+const WIGGLE_REST_S = 2.6;
+const WIGGLE = [...WIGGLE_ANGLES.map((deg) => `rotate(${deg}deg)`), "rotate(0deg)"];
+const WIGGLE_TIMES = [
+  ...WIGGLE_ANGLES.map((_, i) => (i / (WIGGLE_ANGLES.length - 1)) * (WIGGLE_S / (WIGGLE_S + WIGGLE_REST_S))),
+  1,
+];
+
 function ContactRow({
   contact,
   fromSide,
@@ -34,9 +43,13 @@ function ContactRow({
         aria-label={`Call ${contact.name}`}
         className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-cream text-rose-deep transition hover:bg-cream-deep"
       >
+        {/* A 0.7s wiggle, then 2.6s still, looped. The pause is baked into
+            the keyframes rather than using repeatDelay, which would force
+            motion to run it on the main thread instead of via WAAPI. */}
         <motion.span
-          animate={{ rotate: [0, -18, 14, -10, 6, 0] }}
-          transition={{ duration: 0.7, repeat: Infinity, repeatDelay: 2.6, ease: "easeInOut", delay }}
+          className="inline-block"
+          animate={{ transform: WIGGLE }}
+          transition={{ duration: WIGGLE_S + WIGGLE_REST_S, times: WIGGLE_TIMES, repeat: Infinity, ease: "easeInOut", delay }}
         >
           <CallIcon className="h-4 w-4" />
         </motion.span>

@@ -51,7 +51,11 @@ function BeatRing() {
   const scale = useTransform(beat, [0, 1], [1.55, 1]);
   const opacity = useTransform(beat, [0, 1], [0, 0.55]);
   return (
-    <motion.span aria-hidden className="absolute inset-0 rounded-full bg-rose" style={{ scale, opacity }} />
+    <motion.span
+      aria-hidden
+      className="absolute inset-0 rounded-full bg-rose will-change-[transform,opacity]"
+      style={{ scale, opacity }}
+    />
   );
 }
 

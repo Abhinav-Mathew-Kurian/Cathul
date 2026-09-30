@@ -55,21 +55,31 @@ function SkipForwardIcon({ className = "" }: { className?: string }) {
 
 // A tiny bouncing equalizer — the "now playing" tell, and the moving detail
 // inside the card the reference's static mockup couldn't show.
+//
+// Each bar is full height, squashed from the bottom with scaleY: animating
+// `height` re-ran layout every frame, while a `transform` string animation
+// is handed to WAAPI and runs on the compositor.
 function EqualizerBars({ animate }: { animate: boolean }) {
   const bars = [0, 1, 2];
   return (
-    <span className="flex items-end gap-0.5" aria-hidden>
+    // Needs its own height: the bars are sized against it, and without one
+    // they resolved to 0px tall and never showed at all.
+    <span className="flex h-3 items-end gap-0.5" aria-hidden>
       {bars.map((i) => (
         <motion.span
           key={i}
-          className="w-[3px] rounded-full bg-rose"
-          animate={animate ? { height: ["30%", "100%", "45%", "80%", "30%"] } : { height: "30%" }}
+          className="h-full w-[3px] origin-bottom rounded-full bg-rose"
+          initial={{ transform: "scaleY(0.3)" }}
+          animate={
+            animate
+              ? { transform: ["scaleY(0.3)", "scaleY(1)", "scaleY(0.45)", "scaleY(0.8)", "scaleY(0.3)"] }
+              : { transform: "scaleY(0.3)" }
+          }
           transition={
             animate
               ? { duration: 0.9 + i * 0.15, repeat: Infinity, ease: "easeInOut", delay: i * 0.12 }
               : { duration: 0.2 }
           }
-          style={{ height: "30%" }}
         />
       ))}
     </span>
@@ -151,18 +161,23 @@ export function Music() {
             <motion.div
               aria-hidden
               className="absolute inset-0 m-auto h-40 w-40 rounded-full bg-rose/40 blur-2xl"
-              animate={isPlaying ? { opacity: [0.25, 0.55, 0.25], scale: [0.9, 1.05, 0.9] } : { opacity: 0.15, scale: 0.9 }}
+              animate={
+                isPlaying
+                  ? { opacity: [0.25, 0.55, 0.25], transform: ["scale(0.9)", "scale(1.05)", "scale(0.9)"] }
+                  : { opacity: 0.15, transform: "scale(0.9)" }
+              }
               transition={{ duration: 3, repeat: isPlaying ? Infinity : 0, ease: "easeInOut" }}
             />
 
             <div className="relative flex h-44 w-44 items-center justify-center">
-              {/* Groove ring — the only thing that rotates. */}
-              <motion.div
+              {/* Groove ring — the only thing that rotates. A plain CSS spin
+                  (compositor-only) that freezes in place on pause, like a
+                  record stopping, and picks up from there on play. */}
+              <div
                 aria-hidden
-                className="absolute inset-0 rounded-full"
-                animate={isPlaying ? { rotate: 360 } : {}}
-                transition={{ duration: 6, repeat: isPlaying ? Infinity : 0, ease: "linear" }}
+                className="absolute inset-0 animate-[spin_6s_linear_infinite] rounded-full"
                 style={{
+                  animationPlayState: isPlaying ? "running" : "paused",
                   background:
                     "repeating-radial-gradient(circle, #17171c 0px, #17171c 3px, #26262e 3px, #26262e 6px)",
                 }}

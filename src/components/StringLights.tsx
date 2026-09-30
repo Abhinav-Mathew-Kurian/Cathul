@@ -14,6 +14,7 @@ function seeded(i: number, salt: number) {
 
 const VIEWPORT = { once: true, margin: "-60px" } as const;
 const WIDTH = 400;
+const HEIGHT = 60;
 const SWAG = 100;
 const UNLIT = "#4a5975"; // matches --ink-soft
 const LIT = "#ffcf7a"; // matches --bulb-glow
@@ -23,10 +24,20 @@ function wireY(x: number, amplitude: number) {
   return 15 + amplitude * Math.sin(local * Math.PI);
 }
 
+const FLARE_R = 13;
+const FLARE_GLOW =
+  "radial-gradient(closest-side, rgba(255,207,122,1) 0%, rgba(255,207,122,0.55) 45%, rgba(255,207,122,0) 100%)";
+
 // An extra bloom on top of the lit bulb that swells with the music — neighbours
 // alternate which of them flashes on each beat, so the strand "chases" in
 // time with the song. Fully transparent while nothing is playing.
-function BulbFlare({ index, fill }: { index: number; fill: string }) {
+//
+// An HTML layer laid over the SVG rather than an SVG circle: it changes every
+// frame while music plays, and an SVG child can't get its own compositor
+// layer — each change repainted the whole strand. Placed and sized in the
+// SVG's own viewBox units (as percentages), so it lands exactly where the
+// circle did, stretched the same way by preserveAspectRatio="none".
+function BulbFlare({ index, x, y }: { index: number; x: number; y: number }) {
   const { level, beat, beatCount } = useMusicPulse();
   const opacity = useTransform(() => {
     const onBeat = (beatCount.get() + index) % 2 === 0;
@@ -34,7 +45,20 @@ function BulbFlare({ index, fill }: { index: number; fill: string }) {
   });
   const scale = useTransform(() => 0.8 + level.get() * 0.5 + beat.get() * 0.35);
 
-  return <motion.circle r={13} fill={fill} style={{ opacity, scale }} />;
+  return (
+    <motion.span
+      className="absolute will-change-[transform,opacity]"
+      style={{
+        left: `${((x - FLARE_R) / WIDTH) * 100}%`,
+        top: `${((y - FLARE_R) / HEIGHT) * 100}%`,
+        width: `${((FLARE_R * 2) / WIDTH) * 100}%`,
+        height: `${((FLARE_R * 2) / HEIGHT) * 100}%`,
+        background: FLARE_GLOW,
+        opacity,
+        scale,
+      }}
+    />
+  );
 }
 
 type StringLightsProps = {
@@ -84,7 +108,7 @@ export function StringLights({
 
   return (
     <div ref={ref} className={`pointer-events-none overflow-hidden ${className}`} aria-hidden="true">
-      <svg viewBox={`0 0 ${WIDTH} 60`} className="h-full w-full" preserveAspectRatio="none">
+      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="h-full w-full" preserveAspectRatio="none">
         <defs>
           <radialGradient id={glowId}>
             <stop offset="0%" stopColor="var(--bulb-glow)" stopOpacity={1} />
@@ -93,7 +117,7 @@ export function StringLights({
           </radialGradient>
         </defs>
         <path d={wirePath} fill="none" stroke="var(--ink-soft)" strokeOpacity={0.25} strokeWidth={1} />
-        {bulbs.map((b, i) => (
+        {bulbs.map((b) => (
           <g key={b.id} transform={`translate(${b.x.toFixed(1)} ${b.y.toFixed(1)})`}>
             <motion.circle
               className="bulb-halo"
@@ -112,10 +136,10 @@ export function StringLights({
               viewport={VIEWPORT}
               transition={{ duration: 0.5, delay: b.delay, ease: "easeOut" }}
             />
-            {onScreen && <BulbFlare index={i} fill={glow} />}
           </g>
         ))}
       </svg>
+      {onScreen && bulbs.map((b, i) => <BulbFlare key={b.id} index={i} x={b.x} y={b.y} />)}
     </div>
   );
 }

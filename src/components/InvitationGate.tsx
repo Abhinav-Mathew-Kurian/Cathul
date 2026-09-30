@@ -110,7 +110,14 @@ function WaxSeal({
   return (
     <motion.div
       className="flex flex-col items-center"
-      animate={cracked ? { y: 0 } : { y: [0, -6, 0] }}
+      // Full `transform` strings (not motion's x/y/scale shorthands) throughout
+      // the gate — motion hands those to WAAPI, so they run on the compositor
+      // instead of being recomputed on the main thread every frame.
+      animate={
+        cracked
+          ? { transform: "translateY(0px)" }
+          : { transform: ["translateY(0px)", "translateY(-6px)", "translateY(0px)"] }
+      }
       transition={cracked ? { duration: 0.2 } : { duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
     >
       <motion.button
@@ -130,8 +137,8 @@ function WaxSeal({
           style={{ background: "radial-gradient(circle, rgba(255,214,140,0.85) 0%, rgba(255,207,122,0) 68%)" }}
           animate={
             cracked
-              ? { opacity: [0.8, 1, 0], scale: [1, 1.9, 3.2] }
-              : { opacity: [0.35, 0.8, 0.35], scale: [0.92, 1.06, 0.92] }
+              ? { opacity: [0.8, 1, 0], transform: ["scale(1)", "scale(1.9)", "scale(3.2)"] }
+              : { opacity: [0.35, 0.8, 0.35], transform: ["scale(0.92)", "scale(1.06)", "scale(0.92)"] }
           }
           transition={
             cracked ? { duration: 0.75, ease: "easeOut" } : { duration: 2.6, repeat: Infinity, ease: "easeInOut" }
@@ -150,12 +157,14 @@ function WaxSeal({
               animate={
                 cracked
                   ? {
-                      x: [0, half.dir * 3, half.dir * 95],
-                      y: [0, -8, 170],
-                      rotate: [0, half.dir * 5, half.dir * 55],
+                      transform: [
+                        "translate(0px, 0px) rotate(0deg)",
+                        `translate(${half.dir * 3}px, -8px) rotate(${half.dir * 5}deg)`,
+                        `translate(${half.dir * 95}px, 170px) rotate(${half.dir * 55}deg)`,
+                      ],
                       opacity: [1, 1, 0],
                     }
-                  : { x: 0, y: 0, rotate: 0, opacity: 1 }
+                  : { transform: "translate(0px, 0px) rotate(0deg)", opacity: 1 }
               }
               transition={{ duration: 0.95, times: [0, 0.16, 1], ease: ["easeOut", "easeIn"] }}
             >
@@ -396,7 +405,7 @@ export function InvitationGate({ children }: { children: ReactNode }) {
                     // Swinging *away* from the viewer (into the screen) keeps
                     // each panel visible as a folding trapezoid the whole way;
                     // swinging toward the viewer projects it off-screen almost instantly.
-                    animate={{ rotateY: opening ? (isLeft ? 100 : -100) : 0 }}
+                    animate={{ transform: `rotateY(${opening ? (isLeft ? 100 : -100) : 0}deg)` }}
                     transition={{ duration: DOOR_S, ease: DOOR_EASE }}
                   >
                     <div className={`absolute inset-y-0 w-[200%] ${isLeft ? "left-0" : "right-0"}`}>

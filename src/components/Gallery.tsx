@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { wedding, type GalleryPhoto } from "@/content/wedding";
 import { burst, haptic } from "@/lib/burst";
-import { CameraIcon, HeartIcon } from "./doodles";
+import { HeartIcon } from "./doodles";
 import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
 import { StringLights } from "./StringLights";
@@ -187,26 +187,6 @@ export function Gallery() {
               onLike={() => like(photo.id)}
             />
           ))}
-
-          {/* Spans both columns and centers a single half-width tile — with
-              an even number of photos this would otherwise land alone in
-              the left column, stuck off-center. */}
-          <div className="col-span-2 flex justify-center sm:col-span-3">
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={VIEWPORT}
-              transition={{ duration: 0.5, delay: (wedding.gallery.photos.length % 6) * 0.05 }}
-              className="flex aspect-square w-1/2 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-ink/15 text-ink/45 sm:w-1/3"
-            >
-              <CameraIcon className="h-6 w-6" />
-              <p className="text-center font-body text-xs font-semibold">
-                More memories
-                <br />
-                loading...
-              </p>
-            </motion.div>
-          </div>
         </div>
 
         <p className="mt-9 text-center font-body text-sm font-semibold text-ink/65">
