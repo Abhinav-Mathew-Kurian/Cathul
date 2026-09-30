@@ -130,7 +130,7 @@ export const wedding = {
         startsAt: "2026-11-16T18:00:00+05:30",
         venueName: "Suvarnabhumi Auditorium",
         address: "Kannur",
-        fullAddress: "Manathana, Kalladi, Kannur, Kerala",
+        fullAddress: "Manathana, Kalladi, Kerala",
         mapsUrl: "https://maps.google.com/?q=Suvarnabhumi+Auditorium+Manathana+Kalladi+Kannur+Kerala",
         image: unsplash.kannurSunset,
         character: "/images/celebrations/groom.png",
@@ -305,6 +305,22 @@ export const wedding = {
   },
 
   footerImage: "/images/footer/thank-you.png",
+
+  // Paper lanterns rising over the footer artwork — each tap sends one up
+  // with the next blessing in this list (it cycles, so no early repeats).
+  lanterns: {
+    hint: "Tap a lantern to send your blessings",
+    blessings: [
+      "May your home always be full of laughter",
+      "A lifetime of adventures, together",
+      "May every sunrise find you side by side",
+      "Love that grows sweeter every year",
+      "Endless chai, endless chats, endless love",
+      "May your love light up every room",
+      "Happily ever after starts now",
+      "Two hearts, one beautiful story",
+    ],
+  },
 };
 
 export type Wedding = typeof wedding;

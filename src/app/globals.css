@@ -160,6 +160,136 @@ body {
   mask-image: radial-gradient(closest-side, #000 68%, transparent 100%);
 }
 
+/* Gallery — the big heart a double-tap pops over a photo (see Gallery.tsx).
+   Transform + opacity only, so it runs on the compositor. */
+.heart-pop {
+  animation: heart-pop 0.9s ease-out both;
+}
+
+@keyframes heart-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0) rotate(-14deg);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.25) rotate(4deg);
+  }
+  30% {
+    transform: translate(-50%, -50%) scale(0.92) rotate(0deg);
+  }
+  45% {
+    transform: translate(-50%, -50%) scale(1.04);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -95%) scale(0.6);
+  }
+}
+
+/* Footer lanterns — see Lanterns.tsx. Each lantern's rise is a WAAPI
+   animation; hidden until it starts, like .petal. The halo's flicker is
+   opacity only and pauses whenever the footer is off screen. */
+.lantern {
+  opacity: 0;
+}
+
+.lantern-body {
+  position: relative;
+  width: 18px;
+  height: 24px;
+  border-radius: 45% 45% 32% 32% / 40% 40% 28% 28%;
+  background: radial-gradient(ellipse 60% 55% at 50% 72%, #fff4c9 0%, #ffcf7a 38%, #f29a4a 75%, #d9692f 100%);
+  box-shadow:
+    inset 0 -2px 3px rgba(150, 55, 20, 0.35),
+    0 0 10px 2px rgba(255, 190, 100, 0.55);
+}
+
+/* Paper ribs and the dark rim of the lantern's top. */
+.lantern-body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent 31%,
+    rgba(180, 80, 30, 0.22) 32% 35%,
+    transparent 36% 64%,
+    rgba(180, 80, 30, 0.22) 65% 68%,
+    transparent 69%
+  );
+}
+
+.lantern-body::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(140, 60, 25, 0.55);
+}
+
+.lantern-halo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    rgba(255, 200, 110, 0.6) 0%,
+    rgba(255, 190, 100, 0.22) 40%,
+    rgba(255, 190, 100, 0) 70%
+  );
+  animation: lantern-flicker 2.4s ease-in-out infinite alternate;
+}
+
+.lanterns:not([data-live]) .lantern-halo {
+  animation-play-state: paused;
+}
+
+@keyframes lantern-flicker {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 0.9;
+  }
+}
+
+.blessing {
+  animation: blessing-rise 3.2s ease-out both;
+}
+
+@keyframes blessing-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.92);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: translate(-50%, -18px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -32px) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -172,6 +302,12 @@ body {
 
   .petal {
     display: none;
+  }
+
+  /* Still shown, just without the rise — it's removed on a timer anyway. */
+  .blessing {
+    animation: none !important;
+    transform: translateX(-50%);
   }
 
   .bulb-halo {
