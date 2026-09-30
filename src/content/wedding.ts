@@ -164,6 +164,7 @@ export const wedding = {
   gallery: {
     heading: "Gallery",
     subheading: "Some moments. More to come...",
+    likeHint: "psst… double-tap to like your favourites 💕✨",
     photos: [
       { id: "g1", caption: "Where it all began (2016)", image: "/images/gallery/g1-old-times.jpg" },
       { id: "g2", caption: "That look", image: "/images/gallery/g2-forest-glance.jpg" },

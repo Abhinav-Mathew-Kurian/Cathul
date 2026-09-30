@@ -174,6 +174,7 @@ export function Gallery() {
             <BeatingHeart className="h-5 w-5 text-rose" />
           </h2>
           <p className="mt-2 font-body text-sm text-ink/60">{wedding.gallery.subheading}</p>
+          <p className="mt-1 font-hand text-lg text-rose">{wedding.gallery.likeHint}</p>
         </motion.div>
 
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
