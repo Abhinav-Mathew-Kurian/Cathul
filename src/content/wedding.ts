@@ -281,23 +281,24 @@ export const wedding = {
     closing: ["Same people", "Same chaos", "A brighter tomorrow"],
   },
 
-  // Right after the couple's note, guests write back — on pages torn from
-  // the same notepad.
+  // Right after the couple's note, guests write back — each wish released
+  // as a lantern into a dusk sky, like the ones floating over the footer.
   wishes: {
     heading: "Wishes & Blessings",
-    subheading: "Leave a little love for Athul & Cathy. They'll read every single one.",
+    subheading: "Write a wish for Athul & Cathy and release it as a lantern. They'll read every single one.",
+    skyHint: "Tap a lantern to read the wish",
     placeholder: "Write your wish for Athul & Cathy...",
     publicWarning:
       "Your name and wish will be visible to everyone who opens this invitation. Please don't include phone numbers or addresses.",
     privateNote: "Only Athul & Cathy will see this. It won't appear on the wall.",
-    sentPublic: "Your wish is up on the wall ✨",
+    sentPublic: "Your lantern is up in the sky ✨",
     sentPrivate: "Sent privately to Athul & Cathy 💌",
     // Under the RSVP button — a reminder, not a link, so nobody leaves the
     // form before submitting it.
     rsvpReminder: "💌 Don't forget to leave a wish for Athul & Cathy. There's a wishes wall right after their note, further down.",
     // The RSVP thank-you card's button: reads their note, then the wall.
     rsvpThanksCta: "Read our note & leave a wish",
-    empty: "No wishes yet. Write the first one above.",
+    empty: "The sky is waiting for its first lantern. Write a wish below and release it.",
     end: "That's every wish so far. Thank you for all the love 💕",
   },
 

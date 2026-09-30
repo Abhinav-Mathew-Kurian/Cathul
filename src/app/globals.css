@@ -173,35 +173,94 @@ main > footer {
   background: var(--sky-bottom);
 }
 
-/* ── Wishes: pages torn from the couple's notepad ─────────────────────
-   Same cream, same torn top edge (.torn-paper-top) and same faint rules as
-   "A Note From Us", so the wall reads as guests writing back. Handwriting
-   sits on the rules: a 2rem line height with the rules offset to fall just
-   under each baseline. */
-.wish-paper {
+/* ── Wishes: a dusk sky of lanterns ──────────────────────────────────
+   The sky uses the site's own dusk blues and warm sky tone; the lanterns
+   reuse the footer's .lantern-body / .lantern-halo so the two read as one
+   family. Every animation here is transform/opacity only. */
+.wish-sky {
   position: relative;
-  padding: 2.4rem 1.5rem 1.1rem;
-  background-color: var(--cream);
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(2rem - 1px),
-    rgba(30, 42, 68, 0.08) calc(2rem - 1px),
-    rgba(30, 42, 68, 0.08) 2rem
-  );
-  background-position: 0 1.95rem;
-  transform-origin: 50% 0;
+  height: 26rem;
+  overflow: hidden;
+  border-radius: 2rem;
+  background:
+    radial-gradient(120% 55% at 50% 112%, rgba(255, 207, 122, 0.6), rgba(255, 207, 122, 0) 62%),
+    linear-gradient(180deg, #5c7699 0%, #8ca4c4 30%, #c9b3cf 58%, #f1c7b8 82%, #fbeae2 100%);
+  box-shadow: var(--card-shadow);
 }
 
-.wish-lines-text {
-  font-size: 1.45rem;
-  line-height: 2rem;
+.sky-star {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #fff;
+  animation: sky-twinkle 3.4s ease-in-out infinite alternate;
 }
 
-/* clip-path would cut off a box-shadow, so the paper's shadow comes from a
-   drop-shadow on its (unclipped) wrapper, following the torn edge. */
-.wish-shadow {
-  filter: drop-shadow(0 12px 14px rgba(30, 42, 68, 0.13)) drop-shadow(0 2px 2px rgba(30, 42, 68, 0.06));
+@keyframes sky-twinkle {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 0.95;
+  }
+}
+
+.sky-lantern {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  /* Lanterns glide to their new spot when a new wish takes the top one. */
+  transition:
+    left 1.2s cubic-bezier(0.3, 0.8, 0.3, 1),
+    top 1.2s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+
+.sky-bob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: sky-bob 6s ease-in-out infinite;
+}
+
+@keyframes sky-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(2deg);
+  }
+}
+
+.sky-name {
+  margin-top: 6px;
+  white-space: nowrap;
+  text-shadow: 0 1px 6px rgba(60, 50, 90, 0.55);
+}
+
+/* A private wish: a small lantern rises from the button and fades out —
+   sent, but only to the couple. */
+.private-lantern {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  pointer-events: none;
+  animation: private-rise 2.4s cubic-bezier(0.3, 0.6, 0.4, 1) both;
+}
+
+@keyframes private-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -20px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + 18px), -240px) scale(0.8);
+  }
 }
 
 /* A wish arriving with a page of wishes: settles in once. */
@@ -213,22 +272,6 @@ main > footer {
   from {
     opacity: 0;
     transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* The guest's own wish: the page is laid down on top of the pile. */
-.wish-land {
-  animation: wish-land 0.8s cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
-}
-
-@keyframes wish-land {
-  from {
-    opacity: 0;
-    transform: translateY(-28px) rotate(-5deg) scale(1.03);
   }
   to {
     opacity: 1;
