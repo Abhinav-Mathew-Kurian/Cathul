@@ -1,6 +1,8 @@
 /**
- * Google Apps Script that receives RSVPs from the wedding site and appends
- * each one as a row in this spreadsheet.
+ * Google Apps Script that receives RSVPs and wishes from the wedding site
+ * and appends each one as a row in this spreadsheet — RSVPs on the "RSVPs"
+ * tab, wishes on the "Wishes" tab (with a "Hidden" column the site keeps up
+ * to date when a wish is hidden from the wall).
  *
  * One-time setup:
  *  1. Create a Google Sheet (e.g. "Cathul RSVPs").
@@ -17,11 +19,20 @@
  *
  * If you edit this script later, use Deploy → Manage deployments → Edit →
  * Version: New version, so the /exec URL stays the same.
+ *
+ * Updating from the RSVP-only version: paste this file over the old one but
+ * KEEP your existing SECRET line, then deploy a new version as above. Until
+ * you do, the site's wishes are simply not copied here (the old script
+ * rejects them) — nothing is lost, they're all in the database.
  */
 
 const SECRET = "change-me-to-a-long-random-string";
 const SHEET_NAME = "RSVPs";
 const HEADERS = ["Submitted At", "Name", "Phone", "Attending", "Events", "Message"];
+const WISHES_SHEET_NAME = "Wishes";
+const WISH_HEADERS = ["Submitted At", "Name", "Wish", "Who can see it", "Came from", "Hidden", "Wish ID"];
+const WISH_ID_COLUMN = 7;
+const WISH_HIDDEN_COLUMN = 6;
 
 function doPost(e) {
   let data;
@@ -31,7 +42,8 @@ function doPost(e) {
     return json({ ok: false, error: "Invalid JSON" });
   }
 
-  if (data.secret !== SECRET) {
+  // Wishes authenticate with `auth`, RSVPs with `secret`.
+  if ((data.kind ? data.auth : data.secret) !== SECRET) {
     return json({ ok: false, error: "Unauthorized" });
   }
 
@@ -39,6 +51,33 @@ function doPost(e) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
+    if (data.kind === "wish") {
+      getWishesSheet().appendRow([
+        data.createdAt ? new Date(data.createdAt) : new Date(),
+        asText(data.name),
+        asText(data.message),
+        data.visibility === "private" ? "Only the couple" : "Everyone",
+        data.source === "rsvp" ? "RSVP form" : "Wishes wall",
+        "",
+        asText(data.id),
+      ]);
+      return json({ ok: true });
+    }
+    if (data.kind === "wish-hidden") {
+      const sheet = getWishesSheet();
+      const last = sheet.getLastRow();
+      if (last > 1) {
+        const ids = sheet.getRange(2, WISH_ID_COLUMN, last - 1, 1).getValues();
+        for (let i = 0; i < ids.length; i++) {
+          if (String(ids[i][0]) === String(data.id)) {
+            sheet.getRange(i + 2, WISH_HIDDEN_COLUMN).setValue(data.hidden ? "Hidden" : "");
+            break;
+          }
+        }
+      }
+      return json({ ok: true });
+    }
+
     const sheet = getSheet();
     sheet.appendRow([
       data.submittedAt ? new Date(data.submittedAt) : new Date(),
@@ -66,6 +105,23 @@ function getSheet() {
     sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight("bold");
     sheet.setFrozenRows(1);
     sheet.getRange("A:A").setNumberFormat("dd mmm yyyy, h:mm am/pm");
+  }
+  return sheet;
+}
+
+function getWishesSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(WISHES_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(WISHES_SHEET_NAME);
+  }
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(WISH_HEADERS);
+    sheet.getRange(1, 1, 1, WISH_HEADERS.length).setFontWeight("bold");
+    sheet.setFrozenRows(1);
+    sheet.getRange("A:A").setNumberFormat("dd mmm yyyy, h:mm am/pm");
+    sheet.getRange("C:C").setWrap(true);
+    sheet.setColumnWidth(3, 420);
   }
   return sheet;
 }

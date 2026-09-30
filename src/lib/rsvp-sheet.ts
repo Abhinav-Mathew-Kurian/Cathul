@@ -1,13 +1,16 @@
 import type { RsvpEntry } from "@/lib/rsvp-store";
+import type { WishSource } from "@/lib/wishes-store";
+import type { PublicWish, WishVisibility } from "@/lib/wish-rules";
 
-// Mirrors each RSVP into a Google Sheet as it arrives, so the couple can
-// watch the guest list fill up live (and download it as .xlsx any time).
-// The Sheet side is a tiny Apps Script web app — see
-// scripts/google-sheets-rsvp.gs for the code and setup steps.
+// Mirrors RSVPs — and wishes, on their own "Wishes" tab — into a Google
+// Sheet as they arrive, so the family can watch everything come in live
+// (and download it as .xlsx any time). The Sheet side is a tiny Apps Script
+// web app — see scripts/google-sheets-rsvp.gs for the code and setup steps.
 //
 // MongoDB stays the source of truth: this is a best-effort copy, and with
 // GOOGLE_SHEETS_WEBHOOK_URL unset it does nothing at all.
-export async function appendRsvpToSheet(entry: RsvpEntry): Promise<void> {
+
+async function post(payload: Record<string, unknown>): Promise<void> {
   const url = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
   if (!url) return;
 
@@ -15,7 +18,7 @@ export async function appendRsvpToSheet(entry: RsvpEntry): Promise<void> {
     method: "POST",
     // Apps Script only parses the raw body for text/plain posts reliably.
     headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ secret: process.env.GOOGLE_SHEETS_WEBHOOK_SECRET ?? "", ...entry }),
+    body: JSON.stringify(payload),
     signal: AbortSignal.timeout(15_000),
   });
 
@@ -25,4 +28,24 @@ export async function appendRsvpToSheet(entry: RsvpEntry): Promise<void> {
   if (!res.ok || !result?.ok) {
     throw new Error(`Google Sheets append failed (${res.status}): ${result?.error ?? "unexpected response"}`);
   }
+}
+
+const secret = () => process.env.GOOGLE_SHEETS_WEBHOOK_SECRET ?? "";
+
+export function appendRsvpToSheet(entry: RsvpEntry): Promise<void> {
+  return post({ secret: secret(), ...entry });
+}
+
+// Wishes authenticate with `auth`, not `secret`, on purpose: an older copy
+// of the Apps Script (RSVPs only) sees no `secret`, answers "Unauthorized"
+// and appends nothing — rather than filing a wish as a bogus RSVP row. The
+// Wishes tab starts filling in as soon as the updated script is deployed.
+export function appendWishToSheet(
+  wish: PublicWish & { visibility: WishVisibility; source: WishSource }
+): Promise<void> {
+  return post({ auth: secret(), kind: "wish", ...wish });
+}
+
+export function markWishHiddenInSheet(id: string, hidden: boolean): Promise<void> {
+  return post({ auth: secret(), kind: "wish-hidden", id, hidden });
 }

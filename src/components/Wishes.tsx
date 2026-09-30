@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { motion } from "motion/react";
 import { wedding } from "@/content/wedding";
 import { burst, haptic } from "@/lib/burst";
@@ -17,8 +17,13 @@ import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
 import { StringLights } from "./StringLights";
 
+// The wall is a jasmine garland — mulla poo, as worn at every Kerala wedding
+// — with each wish hanging off it on a thread, woven as a strip of kasavu:
+// off-white handloom with a gold zari border. See the .garland / .kasavu
+// rules in globals.css for the textiles themselves.
+
 const VIEWPORT = { once: true, margin: "-60px" } as const;
-const HEART_COLORS = ["#c1594a", "#e6a99b", "#f6d9ce", "#fdfbf3", "#ffcf7a"];
+const BLOOM_COLORS = ["#fffdf6", "#f6ecd2", "#e2c27a", "#c9a04e", "#f6d9ce"];
 
 type Page = { wishes: PublicWish[]; nextCursor: string | null; total?: number };
 
@@ -46,33 +51,14 @@ function merge(current: PublicWish[], incoming: PublicWish[]) {
   return [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || (a.id < b.id ? 1 : -1));
 }
 
-// ── A wish's look: stable per wish (hashed from its id), varied across them ──
-
-const PAPERS = ["#fffaf0", "#fdeee9", "#eaf4fb", "#eef4e8", "#fff4d9", "#f3eefb"];
-const TAPES = ["rgba(193,89,74,0.55)", "rgba(140,164,196,0.6)", "rgba(95,122,82,0.45)", "rgba(255,207,122,0.75)"];
-const AVATARS = ["#c1594a", "#5c7699", "#5f7a52", "#c98b3a", "#8a6fb3", "#a4483b"];
-
+// Each wish gets its own border weave and a slight hang, stable per wish.
 function hash(text: string) {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
   return h >>> 0;
 }
 
-function lookFor(wish: PublicWish) {
-  const h = hash(wish.id);
-  return {
-    paper: PAPERS[h % PAPERS.length],
-    tape: TAPES[(h >>> 3) % TAPES.length],
-    avatar: AVATARS[hash(wish.name.toLowerCase()) % AVATARS.length],
-    tilt: (((h >>> 6) % 25) - 12) / 10, // -1.2° … 1.2°
-    tapeTilt: (((h >>> 11) % 9) - 4) * 1.2,
-  };
-}
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
-}
+const BORDERS = ["kasavu-band", "kasavu-lines", "kasavu-temple"] as const;
 
 const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 const dateOnly = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" });
@@ -87,59 +73,39 @@ function when(iso: string, now: number) {
 }
 
 function WishCard({ wish, now, order, fresh }: { wish: PublicWish; now: number; order: number; fresh: boolean }) {
-  const look = lookFor(wish);
+  const h = hash(wish.id);
+  const tilt = (((h >>> 4) % 17) - 8) / 10; // -0.8° … 0.8°, hanging from its thread
   return (
-    // The <li> does the entrance (compositor-only transform/opacity); the
-    // card inside keeps its own resting tilt.
-    <li className="wish-in" style={{ animationDelay: `${Math.min(order, 7) * 70}ms` }}>
-      <article
-        className={`relative rounded-2xl px-5 pt-6 pb-4 shadow-[0_14px_30px_-18px_rgba(30,42,68,0.45)] ${fresh ? "wish-fresh" : ""}`}
-        style={{ background: look.paper, transform: `rotate(${look.tilt}deg)` } as CSSProperties}
-      >
-        <span
-          aria-hidden
-          className="absolute -top-2.5 h-5 w-16 rounded-[2px]"
-          style={{
-            background: `repeating-linear-gradient(90deg, ${look.tape} 0 6px, transparent 6px 9px), ${look.tape}`,
-            transform: `translateX(-50%) rotate(${look.tapeTilt}deg)`,
-            left: "50%",
-          }}
-        />
-        <span aria-hidden className="pointer-events-none absolute top-1 left-3 font-display text-6xl leading-none text-ink/10">
-          &ldquo;
-        </span>
-        <p className="relative whitespace-pre-line font-hand text-[1.35rem] leading-snug text-ink/85 [overflow-wrap:anywhere]">
-          {wish.message}
-        </p>
-        <footer className="mt-3 flex items-center gap-2.5">
-          <span
-            aria-hidden
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full font-body text-[11px] font-bold text-white"
-            style={{ background: look.avatar }}
-          >
-            {initials(wish.name)}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-body text-sm font-semibold text-ink">{wish.name}</span>
-            <time dateTime={wish.createdAt} className="block font-body text-[11px] text-ink/45">
+    <li
+      className={`wish ${fresh ? "wish-drop" : "wish-in"}`}
+      style={fresh ? undefined : { animationDelay: `${Math.min(order, 7) * 60}ms` }}
+    >
+      <span aria-hidden className="wish-knot" />
+      <div className={fresh ? "wish-swing" : undefined}>
+        <article className={`kasavu ${BORDERS[h % BORDERS.length]}`} style={{ transform: `rotate(${tilt}deg)` }}>
+          <p className="whitespace-pre-line font-hand text-[1.4rem] leading-[1.3] text-ink/85 [overflow-wrap:anywhere]">
+            {wish.message}
+          </p>
+          <footer className="mt-2 flex items-end justify-between gap-3">
+            <span className="min-w-0 truncate font-script text-[1.75rem] leading-none text-[#8a6a28]">{wish.name}</span>
+            <time dateTime={wish.createdAt} className="flex-shrink-0 pb-0.5 font-body text-[11px] text-ink/40">
               {when(wish.createdAt, now)}
             </time>
-          </span>
-          <HeartIcon className="h-4 w-4 flex-shrink-0 text-rose/70" />
-        </footer>
-      </article>
+          </footer>
+        </article>
+      </div>
     </li>
   );
 }
 
 function SkeletonCard() {
   return (
-    <li className="animate-pulse rounded-2xl bg-white/60 px-5 pt-6 pb-4" aria-hidden>
-      <div className="h-4 w-11/12 rounded bg-ink/10" />
-      <div className="mt-2.5 h-4 w-3/4 rounded bg-ink/10" />
-      <div className="mt-4 flex items-center gap-2.5">
-        <div className="h-8 w-8 rounded-full bg-ink/10" />
-        <div className="h-3 w-24 rounded bg-ink/10" />
+    <li className="wish" aria-hidden>
+      <span className="wish-knot" />
+      <div className="kasavu kasavu-lines animate-pulse">
+        <div className="h-4 w-11/12 rounded-sm bg-[#e9dfc4]/70" />
+        <div className="mt-2.5 h-4 w-3/5 rounded-sm bg-[#e9dfc4]/70" />
+        <div className="mt-4 h-5 w-28 rounded-sm bg-[#e9dfc4]/60" />
       </div>
     </li>
   );
@@ -215,7 +181,7 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.fields) setErrors(data.fields);
-        setServerError(data.error ?? "Could not send your wish. Please try again.");
+        setServerError(data.error ?? "Your wish didn't send. Please try again.");
         setStatus("error");
         return;
       }
@@ -226,11 +192,11 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
           x: origin.left + origin.width / 2,
           y: origin.top,
           count: 26,
-          speed: 520,
-          shapes: ["heart", "petal"],
-          colors: HEART_COLORS,
+          speed: 480,
+          shapes: ["petal", "petal", "heart"],
+          colors: BLOOM_COLORS,
           size: [6, 12],
-          life: 2.4,
+          life: 2.6,
         });
       }
       haptic([10, 30, 16]);
@@ -239,7 +205,7 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
       startedAt.current = null;
       setStatus("sent");
     } catch {
-      setServerError("Could not send your wish. Please check your connection and try again.");
+      setServerError("Your wish didn't send. Check your connection and try again.");
       setStatus("error");
     }
   }
@@ -252,39 +218,11 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
       onSubmit={handleSubmit}
       onFocusCapture={markStarted}
       noValidate
-      className="space-y-4 rounded-3xl border border-ink/10 bg-white/75 p-5 text-left shadow-[var(--card-shadow)]"
+      className="kasavu kasavu-band kasavu-form space-y-5 text-left"
     >
       <div>
-        <label htmlFor="wish-name" className="font-body text-sm font-bold text-ink">
-          Your Name <span className="text-rose">*</span>
-        </label>
-        <input
-          id="wish-name"
-          type="text"
-          autoComplete="name"
-          maxLength={NAME_MAX}
-          value={name}
-          onChange={(e) => {
-            setName(e.target.value);
-            edited();
-          }}
-          placeholder="Your name"
-          aria-invalid={!!errors.name}
-          aria-describedby={errors.name ? "wish-name-error" : undefined}
-          className={`mt-1.5 w-full rounded-xl border bg-white/85 px-3.5 py-3 font-body text-sm text-ink placeholder:text-ink/35 focus:border-rose focus:outline-none ${
-            errors.name ? "border-rose-deep" : "border-ink/15"
-          }`}
-        />
-        {errors.name && (
-          <p id="wish-name-error" role="alert" className="mt-1 font-body text-xs text-rose-deep">
-            {errors.name}
-          </p>
-        )}
-      </div>
-
-      <div>
         <label htmlFor="wish-message" className="font-body text-sm font-bold text-ink">
-          Your Wish <span className="text-rose">*</span>
+          Your wish
         </label>
         <div className="relative mt-1.5">
           <textarea
@@ -299,13 +237,13 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
             placeholder={wedding.wishes.placeholder}
             aria-invalid={!!errors.message}
             aria-describedby={`wish-count${errors.message ? " wish-message-error" : ""}`}
-            className={`wish-lines w-full resize-none rounded-xl border px-3.5 pt-2 pb-6 font-hand text-xl leading-8 text-ink placeholder:text-ink/35 focus:border-rose focus:outline-none ${
-              errors.message ? "border-rose-deep" : "border-ink/15"
+            className={`w-full resize-none rounded-sm border bg-white/70 px-3 pt-2 pb-6 font-hand text-[1.35rem] leading-8 text-ink placeholder:text-ink/35 focus:border-[#c9a04e] focus:outline-none focus:ring-2 focus:ring-[#c9a04e]/25 ${
+              errors.message ? "border-rose-deep" : "border-[#e6d8b3]"
             }`}
           />
           <span
             id="wish-count"
-            className={`pointer-events-none absolute right-3 bottom-2 font-body text-[10px] tabular-nums ${
+            className={`pointer-events-none absolute right-2.5 bottom-1.5 font-body text-[10px] tabular-nums ${
               count > MESSAGE_MAX - 40 ? "text-rose-deep" : "text-ink/35"
             }`}
           >
@@ -319,12 +257,40 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
         )}
       </div>
 
+      <div>
+        <label htmlFor="wish-name" className="font-body text-sm font-bold text-ink">
+          Signed by
+        </label>
+        <input
+          id="wish-name"
+          type="text"
+          autoComplete="name"
+          maxLength={NAME_MAX}
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            edited();
+          }}
+          placeholder="Your name"
+          aria-invalid={!!errors.name}
+          aria-describedby={errors.name ? "wish-name-error" : undefined}
+          className={`mt-0.5 w-full border-0 border-b bg-transparent px-0 pt-1 pb-1.5 font-script text-[1.9rem] leading-tight text-[#8a6a28] placeholder:font-body placeholder:text-sm placeholder:text-ink/35 focus:outline-none focus:ring-0 ${
+            errors.name ? "border-rose-deep" : "border-[#d9c38f] focus:border-[#c9a04e]"
+          }`}
+        />
+        {errors.name && (
+          <p id="wish-name-error" role="alert" className="mt-1 font-body text-xs text-rose-deep">
+            {errors.name}
+          </p>
+        )}
+      </div>
+
       <fieldset>
-        <legend className="font-body text-sm font-bold text-ink">Who can see it?</legend>
-        <div role="radiogroup" aria-label="Who can see your wish" className="relative mt-1.5 grid grid-cols-2 rounded-full bg-ink/[0.06] p-1">
+        <legend className="font-body text-sm font-bold text-ink">Who can read it</legend>
+        <div role="radiogroup" aria-label="Who can read your wish" className="relative mt-1.5 grid grid-cols-2 rounded-full bg-[#efe4c7]/70 p-1">
           <span
             aria-hidden
-            className="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full bg-white shadow-sm transition-transform duration-300 ease-out"
+            className="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full bg-white shadow-[0_1px_0_rgba(201,160,78,0.45),0_2px_6px_-2px_rgba(80,60,20,0.25)] transition-transform duration-300 ease-out"
             style={{ transform: isPublic ? "translateX(0)" : "translateX(100%)" }}
           />
           {(
@@ -343,8 +309,8 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
                 setErrors((prev) => ({ ...prev, message: undefined }));
                 edited();
               }}
-              className={`relative flex items-center justify-center gap-1.5 rounded-full py-2.5 font-body text-xs font-bold transition-colors ${
-                visibility === value ? "text-rose-deep" : "text-ink/50"
+              className={`relative flex items-center justify-center gap-1.5 rounded-full py-2.5 font-body text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a04e] ${
+                visibility === value ? "text-[#8a6a28]" : "text-ink/45"
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -354,8 +320,8 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
         </div>
         <p
           key={visibility}
-          className={`wish-note mt-2.5 flex gap-2 rounded-xl px-3 py-2.5 font-body text-xs leading-relaxed ${
-            isPublic ? "border border-[#f1d08a] bg-[#fff6e0] text-[#7a5a17]" : "border border-dusk/25 bg-dusk/10 text-ink/70"
+          className={`wish-note mt-2.5 flex gap-2 rounded-sm px-3 py-2.5 font-body text-xs leading-relaxed ${
+            isPublic ? "border border-[#ecd49c] bg-[#fff6e0] text-[#6e5316]" : "border border-dusk/25 bg-dusk/10 text-ink/70"
           }`}
         >
           {isPublic ? <GlobeIcon className="mt-px h-4 w-4 flex-shrink-0" /> : <LockIcon className="mt-px h-4 w-4 flex-shrink-0" />}
@@ -381,13 +347,13 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
         disabled={status === "sending"}
         className="flex w-full items-center justify-center gap-2 rounded-full bg-rose py-4 font-body text-sm font-bold text-white shadow-[var(--card-shadow)] transition hover:bg-rose-deep active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {status === "sending" ? "Sending..." : isPublic ? "Post your wish" : "Send privately"}
+        {status === "sending" ? "Sending..." : isPublic ? "Add your wish to the garland" : "Send privately"}
         {status !== "sending" && <HeartIcon className="h-4 w-4" />}
       </button>
 
-      <div aria-live="polite" className="min-h-0">
+      <div aria-live="polite">
         {status === "sent" && (
-          <p className="wish-note text-center font-hand text-xl text-rose-deep">
+          <p className="wish-note text-center font-hand text-xl text-[#8a6a28]">
             {sentAs === "public" ? wedding.wishes.sentPublic : wedding.wishes.sentPrivate}
           </p>
         )}
@@ -425,7 +391,7 @@ export function Wishes() {
 
   // First page — and, when someone comes back to the wall a minute later,
   // any wishes posted since, slotted in on top. Keyset paging means these
-  // never disturb the "Read more" cursor, which only ever points at the
+  // never disturb the "show more" cursor, which only ever points at the
   // oldest wish loaded.
   const refresh = useCallback(async () => {
     lastRefresh.current = Date.now();
@@ -433,8 +399,8 @@ export function Wishes() {
     try {
       const page = await fetchPage(null);
       setWishes((current) => merge(current, page.wishes));
-      // Only the first load sets the "Read more" cursor; later refreshes just
-      // add newer wishes on top and leave it pointing at the oldest one.
+      // Only the first load sets the cursor; later refreshes just add newer
+      // wishes on top and leave it pointing at the oldest one.
       if (!firstPageLoaded.current) {
         firstPageLoaded.current = true;
         setCursor(page.nextCursor);
@@ -488,6 +454,7 @@ export function Wishes() {
   }
 
   const remaining = total !== null ? Math.max(0, total - wishes.length) : null;
+  const ended = !cursor && state === "ready";
 
   return (
     <section ref={sectionRef} id="wishes" className="wishes-bg relative overflow-hidden px-5 pt-16 pb-16">
@@ -507,12 +474,6 @@ export function Wishes() {
             <BeatingHeart className="h-5 w-5 text-rose" />
           </h2>
           <p className="mt-2 font-body text-sm leading-relaxed text-ink/60">{wedding.wishes.subheading}</p>
-          {!!total && (
-            <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3.5 py-1.5 font-body text-xs font-semibold text-rose-deep shadow-sm">
-              <HeartIcon className="h-3.5 w-3.5" />
-              {total} {total === 1 ? "wish" : "wishes"} and counting
-            </p>
-          )}
         </motion.div>
 
         <motion.div
@@ -525,51 +486,61 @@ export function Wishes() {
           <WishForm onPosted={handlePosted} />
         </motion.div>
 
-        <div className="mt-10">
-          {state === "error" && wishes.length === 0 ? (
-            <div className="text-center">
-              <p className="font-body text-sm text-ink/60">Couldn&apos;t load the wishes just now.</p>
-              <button
-                type="button"
-                onClick={refresh}
-                className="mt-3 rounded-full border-2 border-rose/30 bg-white/70 px-5 py-2 font-body text-xs font-bold text-rose-deep"
-              >
-                Try again
-              </button>
-            </div>
-          ) : state === "ready" && wishes.length === 0 ? (
-            <p className="text-center font-hand text-2xl text-ink/55">{wedding.wishes.empty}</p>
-          ) : (
-            <ul aria-label="Wishes from friends and family" aria-busy={state === "loading"} className="space-y-6">
+        {!!total && (
+          <p className="mt-10 text-center font-hand text-2xl text-[#8a6a28]">
+            {total} {total === 1 ? "wish" : "wishes"} on the garland
+          </p>
+        )}
+
+        {state === "error" && wishes.length === 0 ? (
+          <div className="mt-10 text-center">
+            <p className="font-body text-sm text-ink/60">The wishes didn&apos;t load.</p>
+            <button
+              type="button"
+              onClick={refresh}
+              className="mt-3 rounded-full border border-[#d9c38f] bg-white/70 px-5 py-2 font-body text-xs font-bold text-[#8a6a28]"
+            >
+              Try again
+            </button>
+          </div>
+        ) : state === "ready" && wishes.length === 0 ? (
+          <div className="garland garland-empty mt-10">
+            <span aria-hidden className="garland-flower" />
+            <p className="font-hand text-2xl leading-snug text-ink/60">{wedding.wishes.empty}</p>
+          </div>
+        ) : (
+          <div className="garland mt-6">
+            <ul aria-label="Wishes from friends and family" aria-busy={state !== "ready"} className="space-y-7 pt-3">
               {wishes.length === 0
                 ? [0, 1, 2].map((i) => <SkeletonCard key={i} />)
                 : wishes.map((wish, i) => (
                     <WishCard key={wish.id} wish={wish} now={now} order={i % 8} fresh={freshIds.has(wish.id)} />
                   ))}
             </ul>
-          )}
+            {ended && wishes.length > 0 && <span aria-hidden className="garland-flower" />}
+          </div>
+        )}
 
-          {cursor && wishes.length > 0 && (
-            <div className="mt-8 text-center">
-              <button
-                type="button"
-                onClick={loadMore}
-                disabled={loadingMore}
-                className="rounded-full border-2 border-rose/30 bg-white/70 px-6 py-3 font-body text-sm font-bold text-rose-deep shadow-sm transition hover:bg-white active:scale-[0.98] disabled:opacity-60"
-              >
-                {loadingMore ? "Loading..." : `Read more wishes${remaining ? ` (${remaining})` : ""}`}
-              </button>
-              {moreError && (
-                <p role="alert" className="mt-2 font-body text-xs text-rose-deep">
-                  Couldn&apos;t load more. Tap to try again.
-                </p>
-              )}
-            </div>
-          )}
-          {!cursor && state === "ready" && wishes.length > 0 && (
-            <p className="mt-8 text-center font-hand text-xl text-ink/55">{wedding.wishes.end}</p>
-          )}
-        </div>
+        {cursor && wishes.length > 0 && (
+          <div className="mt-7 pl-10">
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="rounded-full border border-[#d9c38f] bg-[#fffdf6] px-5 py-2.5 font-body text-sm font-bold text-[#8a6a28] shadow-[0_6px_14px_-10px_rgba(80,60,20,0.5)] transition active:scale-[0.98] disabled:opacity-60"
+            >
+              {loadingMore ? "Loading..." : `Show more wishes${remaining ? ` (${remaining} left)` : ""}`}
+            </button>
+            {moreError && (
+              <p role="alert" className="mt-2 font-body text-xs text-rose-deep">
+                More wishes didn&apos;t load. Tap to try again.
+              </p>
+            )}
+          </div>
+        )}
+        {ended && wishes.length > 0 && (
+          <p className="mt-3 pl-10 font-hand text-xl text-ink/50">{wedding.wishes.end}</p>
+        )}
       </div>
     </section>
   );

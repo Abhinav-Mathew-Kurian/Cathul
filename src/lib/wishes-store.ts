@@ -143,12 +143,13 @@ const newestFirst = (a: WishDoc, b: WishDoc) =>
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
+/** `created` is false when this exact wish already existed (a double send). */
 export async function createWish(input: {
   name: string;
   message: string;
   visibility: WishVisibility;
   source: WishSource;
-}): Promise<PublicWish> {
+}): Promise<{ wish: PublicWish; created: boolean }> {
   const doc: WishDoc = {
     _id: randomUUID(),
     ...input,
@@ -158,14 +159,17 @@ export async function createWish(input: {
   };
 
   const c = await collections();
-  if (c) return toPublic(await insertOnce(c.wishes, doc));
+  if (c) {
+    const stored = await insertOnce(c.wishes, doc);
+    return { wish: toPublic(stored), created: stored._id === doc._id };
+  }
 
   return serialized(async () => {
     const existing = (await readLocal()).find((w) => w.contentKey === doc.contentKey);
-    if (existing) return toPublic(existing);
+    if (existing) return { wish: toPublic(existing), created: false };
     await mkdir(DATA_DIR, { recursive: true });
     await appendFile(LOCAL_FILE, JSON.stringify(doc) + "\n", "utf-8");
-    return toPublic(doc);
+    return { wish: toPublic(doc), created: true };
   });
 }
 

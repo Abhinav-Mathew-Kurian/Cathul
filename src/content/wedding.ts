@@ -281,7 +281,7 @@ export const wedding = {
     closing: ["Same people", "Same chaos", "A brighter tomorrow"],
   },
 
-  // The wall of wishes right after the couple's note — guests write back.
+  // The wishes garland right after the couple's note — guests write back.
   wishes: {
     heading: "Wishes & Blessings",
     subheading: "Leave a little love for Athul & Cathy. They'll read every single one.",
@@ -289,10 +289,10 @@ export const wedding = {
     publicWarning:
       "Your name and wish will be visible to everyone who opens this invitation (that's 1,000+ guests!). Please don't include phone numbers or addresses.",
     privateNote: "Only Athul & Cathy will see this. It won't appear on the wall.",
-    sentPublic: "Your wish is on the wall! ✨",
+    sentPublic: "Your wish is on the garland ✨",
     sentPrivate: "Sent privately to Athul & Cathy 💌",
-    empty: "No wishes yet. Yours could be the very first ✨",
-    end: "That's every wish so far. Thank you for all the love 💕",
+    empty: "The garland is waiting for its first flower. Add your wish above.",
+    end: "You've reached the end of the garland. Thank you for all the love 💕",
   },
 
   help: {

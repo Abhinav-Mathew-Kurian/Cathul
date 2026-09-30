@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Caveat, Cormorant_Garamond, Jost, Sacramento } from "next/font/google";
+import { Caveat, Chilanka, Cormorant_Garamond, Jost, Sacramento } from "next/font/google";
 import "./globals.css";
 import { wedding } from "@/content/wedding";
 import { formatEventDateParts } from "@/lib/calendar";
@@ -21,6 +21,17 @@ const sacramento = Sacramento({
   variable: "--font-sacramento",
   subsets: ["latin"],
   weight: "400",
+});
+
+// Handwritten Malayalam, for wishes (and names) written in Malayalam — the
+// fallback behind Caveat and Sacramento, which have no Malayalam letters.
+// Not preloaded: its unicode-range means a browser only fetches it when a
+// Malayalam character is actually on screen.
+const chilanka = Chilanka({
+  variable: "--font-chilanka",
+  subsets: ["malayalam"],
+  weight: "400",
+  preload: false,
 });
 
 const caveat = Caveat({
@@ -132,7 +143,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${cormorant.variable} ${jost.variable} ${sacramento.variable} ${caveat.variable} h-full antialiased`}
+      className={`${cormorant.variable} ${jost.variable} ${sacramento.variable} ${caveat.variable} ${chilanka.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col overflow-x-hidden">
         <script

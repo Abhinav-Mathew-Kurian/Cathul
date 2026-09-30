@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
+import { appendWishToSheet } from "@/lib/rsvp-sheet";
 import { cleanText, MESSAGE_MAX, NAME_MAX, PAGE_SIZE, validateWish, type WishVisibility } from "@/lib/wish-rules";
 import { createWish, listPublicWishes, withinRateLimit, type WishPage } from "@/lib/wishes-store";
 
@@ -68,7 +69,16 @@ export async function POST(request: NextRequest) {
         { status: 429 }
       );
     }
-    const wish = await createWish({ name, message, visibility, source: "wall" });
+    const { wish, created } = await createWish({ name, message, visibility, source: "wall" });
+    // Copied to the Sheet's Wishes tab after answering, and only once — a
+    // repeated send of the same wish doesn't add a second row.
+    if (created) {
+      after(() =>
+        appendWishToSheet({ ...wish, visibility, source: "wall" }).catch((error) =>
+          console.error("Failed to copy wish to Google Sheet:", error)
+        )
+      );
+    }
     return NextResponse.json({ ok: true, wish: visibility === "public" ? wish : undefined });
   } catch (error) {
     console.error("Failed to save wish:", error);

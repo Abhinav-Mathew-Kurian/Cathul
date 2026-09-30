@@ -44,8 +44,8 @@
 
   --font-display: var(--font-cormorant);
   --font-body: var(--font-jost);
-  --font-script: var(--font-sacramento);
-  --font-hand: var(--font-caveat);
+  --font-script: var(--font-sacramento), var(--font-chilanka);
+  --font-hand: var(--font-caveat), var(--font-chilanka);
 }
 
 html {
@@ -173,17 +173,142 @@ main > footer {
   background: var(--sky-bottom);
 }
 
-/* Each wish card settles onto the wall — transform + opacity only, so it
-   runs on the compositor; the card's own resting tilt lives on the inner
-   element and is never animated. */
+/* ── Wishes garland ─────────────────────────────────────────────────────
+   A strand of jasmine buds (mulla poo) runs down the wall as one repeating
+   background — a hundred wishes cost the same to draw as three. Each wish
+   hangs off it on a thread, woven as kasavu: off-white handloom with a gold
+   zari border. Motion is transform/opacity only. */
+:root {
+  --zari: linear-gradient(90deg, #b58a3c, #e3c47e 22%, #c9a04e 48%, #ecd497 74%, #b58a3c);
+  --jasmine-bud: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='40' viewBox='0 0 24 40'%3E%3Cpath d='M12 0v40' stroke='%236f8a58' stroke-opacity='.5' stroke-width='1.2'/%3E%3Cg transform='translate(12 7) rotate(-34)'%3E%3Cpath d='M0 0c3.3 2.2 3.7 7.8 0 12c-3.7-4.2-3.3-9.8 0-12z' fill='%23fffdf6' stroke='%23d8caa2' stroke-width='.7'/%3E%3Cpath d='M-1.9 1L0-1.7L1.9 1z' fill='%236f8a58'/%3E%3C/g%3E%3Cg transform='translate(12 27) rotate(30)'%3E%3Cpath d='M0 0c3.3 2.2 3.7 7.8 0 12c-3.7-4.2-3.3-9.8 0-12z' fill='%23fffdf6' stroke='%23d8caa2' stroke-width='.7'/%3E%3Cpath d='M-1.9 1L0-1.7L1.9 1z' fill='%236f8a58'/%3E%3C/g%3E%3C/svg%3E");
+  --jasmine-flower: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-12 -12 24 24'%3E%3Cg fill='%23fffdf6' stroke='%23d6c596' stroke-width='.6'%3E%3Cellipse cy='-5.6' rx='3.3' ry='5.4'/%3E%3Cellipse cy='-5.6' rx='3.3' ry='5.4' transform='rotate(72)'/%3E%3Cellipse cy='-5.6' rx='3.3' ry='5.4' transform='rotate(144)'/%3E%3Cellipse cy='-5.6' rx='3.3' ry='5.4' transform='rotate(216)'/%3E%3Cellipse cy='-5.6' rx='3.3' ry='5.4' transform='rotate(288)'/%3E%3C/g%3E%3Ccircle r='1.9' fill='%23e3c47e'/%3E%3C/svg%3E");
+}
+
+.garland {
+  position: relative;
+}
+
+.garland::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 6px;
+  width: 24px;
+  background: var(--jasmine-bud) repeat-y top center / 24px 40px;
+}
+
+.garland-empty {
+  display: flex;
+  min-height: 132px;
+  align-items: flex-start;
+  gap: 14px;
+  padding-left: 40px;
+}
+
+.garland-empty::before {
+  bottom: 22px;
+}
+
+.garland-flower {
+  position: relative;
+  display: block;
+  width: 26px;
+  height: 26px;
+  margin-left: 5px;
+  background: var(--jasmine-flower) center / contain no-repeat;
+}
+
+.garland-empty .garland-flower {
+  position: absolute;
+  left: 5px;
+  bottom: 0;
+  margin: 0;
+}
+
+.wish {
+  position: relative;
+  padding-left: 40px;
+}
+
+/* The thread from the garland to the cloth, and the flower it's tied at. */
+.wish::before {
+  content: "";
+  position: absolute;
+  left: 22px;
+  top: 27px;
+  width: 20px;
+  height: 1.5px;
+  background: rgba(111, 138, 88, 0.6);
+}
+
+.wish-knot {
+  position: absolute;
+  left: 7px;
+  top: 16px;
+  width: 22px;
+  height: 22px;
+  background: var(--jasmine-flower) center / contain no-repeat;
+}
+
+.kasavu {
+  position: relative;
+  border-radius: 3px;
+  padding: 18px 18px 30px;
+  background-color: #fffdf6;
+  /* A whisper of handloom weft — felt more than seen. */
+  background-image: repeating-linear-gradient(0deg, rgba(150, 125, 70, 0.025) 0 1px, transparent 1px 4px);
+  box-shadow:
+    inset 0 1px 0 rgba(201, 160, 78, 0.35),
+    0 12px 26px -18px rgba(80, 60, 20, 0.55),
+    0 2px 4px -2px rgba(80, 60, 20, 0.12);
+  transform-origin: 0 28px;
+}
+
+/* The zari border — three weaves, so the garland doesn't look stamped. */
+.kasavu::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  pointer-events: none;
+}
+
+.kasavu-band::after {
+  height: 10px;
+  background:
+    linear-gradient(to bottom, transparent 0 5px, #fffdf6 5px 7px, transparent 7px),
+    var(--zari);
+}
+
+.kasavu-lines::after {
+  height: 6px;
+  background:
+    linear-gradient(to bottom, transparent 0 1.5px, #fffdf6 1.5px 4.5px, transparent 4.5px),
+    var(--zari);
+}
+
+.kasavu-temple::after {
+  height: 10px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 6L5 0L10 6z' fill='%23c9a04e'/%3E%3C/svg%3E") repeat-x top left / 10px 6px,
+    var(--zari) bottom / 100% 3px no-repeat;
+}
+
+.kasavu-form {
+  padding: 22px 20px 38px;
+}
+
+/* A wish arriving with a page: settles in once. */
 .wish-in {
-  animation: wish-in 0.55s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation: wish-in 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
 }
 
 @keyframes wish-in {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.97);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -191,23 +316,53 @@ main > footer {
   }
 }
 
-/* The guest's own wish, just posted: a warm glow that fades out once. */
-.wish-fresh::after {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: 1.1rem;
-  box-shadow: 0 0 0 2px rgba(255, 207, 122, 0.6), 0 0 26px 4px rgba(255, 207, 122, 0.45);
-  pointer-events: none;
-  animation: wish-fresh 2.6s ease-out 0.4s both;
+/* The guest's own wish: it drops down the thread onto the garland, sways
+   on it, and the jasmine it's tied at opens. */
+.wish-drop {
+  animation: wish-drop 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
 }
 
-@keyframes wish-fresh {
+@keyframes wish-drop {
   from {
-    opacity: 1;
+    opacity: 0;
+    transform: translateY(-34px);
   }
   to {
-    opacity: 0;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.wish-swing {
+  transform-origin: 0 28px;
+  animation: wish-swing 1.8s ease-out 0.3s both;
+}
+
+@keyframes wish-swing {
+  0% {
+    transform: rotate(3.5deg);
+  }
+  35% {
+    transform: rotate(-2deg);
+  }
+  65% {
+    transform: rotate(1deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.wish-drop .wish-knot {
+  animation: wish-bloom 0.8s cubic-bezier(0.3, 1.6, 0.5, 1) 0.45s both;
+}
+
+@keyframes wish-bloom {
+  from {
+    transform: scale(0.25) rotate(-60deg);
+  }
+  to {
+    transform: none;
   }
 }
 
@@ -224,21 +379,6 @@ main > footer {
     opacity: 1;
     transform: none;
   }
-}
-
-/* The message box is a sheet of ruled notepaper; the lines track the
-   handwriting's 2rem line height. */
-.wish-lines {
-  background-color: rgba(251, 247, 236, 0.9);
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(2rem - 1px),
-    rgba(30, 42, 68, 0.09) calc(2rem - 1px),
-    rgba(30, 42, 68, 0.09) 2rem
-  );
-  background-position: 0 0.5rem;
-  background-attachment: local;
 }
 
 /* Need Help? — same flat continuation. */

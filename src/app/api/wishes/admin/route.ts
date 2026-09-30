@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
+import { markWishHiddenInSheet } from "@/lib/rsvp-sheet";
 import { listAllWishes, setWishHidden } from "@/lib/wishes-store";
 
 // For the couple only: every wish (private ones included) and the switch to
@@ -28,5 +29,9 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
   const found = await setWishHidden(id, body.hidden);
-  return found ? NextResponse.json({ ok: true }) : notFound();
+  if (!found) return notFound();
+  after(() =>
+    markWishHiddenInSheet(id, body.hidden).catch((error) => console.error("Failed to update wish in Google Sheet:", error))
+  );
+  return NextResponse.json({ ok: true });
 }
