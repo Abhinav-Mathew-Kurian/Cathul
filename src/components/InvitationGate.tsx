@@ -263,6 +263,9 @@ export function InvitationGate({ children }: { children: ReactNode }) {
   const [stage, setStage] = useState<Stage>("closed");
   const { startPlayback } = useMusic();
   const sealRef = useRef<HTMLButtonElement>(null);
+  // Guards against a double open: a tap on the seal fires its own onClick and
+  // then bubbles up to the overlay's, both within the same render.
+  const openedRef = useRef(false);
 
   const cracked = stage !== "closed";
   const opening = stage === "opening" || stage === "open";
@@ -275,7 +278,8 @@ export function InvitationGate({ children }: { children: ReactNode }) {
   }, [stage]);
 
   function handleOpen() {
-    if (stage !== "closed") return;
+    if (openedRef.current) return;
+    openedRef.current = true;
     // Called synchronously from this click — the one gesture every browser
     // reliably honors for starting audio, so the music begins the instant
     // the invitation opens instead of waiting for a separate Play tap.
@@ -315,8 +319,11 @@ export function InvitationGate({ children }: { children: ReactNode }) {
 
       <AnimatePresence>
         {stage !== "open" && (
+          // Guests tap the "Tap to Open" label (or anywhere on the card) far
+          // more often than the seal itself, so a tap anywhere opens it.
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center lg:p-12"
+            className={`fixed inset-0 z-50 flex items-center justify-center lg:p-12 ${cracked ? "" : "cursor-pointer"}`}
+            onClick={handleOpen}
             exit={{ opacity: 0, transition: { duration: 0.3 } }}
           >
             {/* Backdrop — dissolves as the doors part, so the site shows through the gap. */}
