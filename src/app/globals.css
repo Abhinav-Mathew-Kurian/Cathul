@@ -44,8 +44,8 @@
 
   --font-display: var(--font-cormorant);
   --font-body: var(--font-jost);
-  --font-script: var(--font-sacramento), var(--font-chilanka);
-  --font-hand: var(--font-caveat), var(--font-chilanka);
+  --font-script: var(--font-sacramento), var(--font-chilanka), var(--font-kalam);
+  --font-hand: var(--font-caveat), var(--font-chilanka), var(--font-kalam);
 }
 
 html {

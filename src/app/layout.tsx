@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Caveat, Chilanka, Cormorant_Garamond, Jost, Sacramento } from "next/font/google";
+import { Caveat, Chilanka, Cormorant_Garamond, Jost, Kalam, Sacramento } from "next/font/google";
 import "./globals.css";
 import { wedding } from "@/content/wedding";
 import { formatEventDateParts } from "@/lib/calendar";
@@ -30,6 +30,15 @@ const sacramento = Sacramento({
 const chilanka = Chilanka({
   variable: "--font-chilanka",
   subsets: ["malayalam"],
+  weight: "400",
+  preload: false,
+});
+
+// Handwritten Hindi (Devanagari), for the same reason — after Chilanka in
+// the stack, and likewise only fetched when a Devanagari character shows.
+const kalam = Kalam({
+  variable: "--font-kalam",
+  subsets: ["devanagari"],
   weight: "400",
   preload: false,
 });
@@ -143,7 +152,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${cormorant.variable} ${jost.variable} ${sacramento.variable} ${caveat.variable} ${chilanka.variable} h-full antialiased`}
+      className={`${cormorant.variable} ${jost.variable} ${sacramento.variable} ${caveat.variable} ${chilanka.variable} ${kalam.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col overflow-x-hidden">
         <script
