@@ -281,18 +281,24 @@ export const wedding = {
     closing: ["Same people", "Same chaos", "A brighter tomorrow"],
   },
 
-  // The wishes garland right after the couple's note — guests write back.
+  // Right after the couple's note, guests write back — on pages torn from
+  // the same notepad.
   wishes: {
     heading: "Wishes & Blessings",
     subheading: "Leave a little love for Athul & Cathy. They'll read every single one.",
-    placeholder: "Write your wish for the couple...",
+    placeholder: "Write your wish for Athul & Cathy...",
     publicWarning:
-      "Your name and wish will be visible to everyone who opens this invitation (that's 1,000+ guests!). Please don't include phone numbers or addresses.",
+      "Your name and wish will be visible to everyone who opens this invitation. Please don't include phone numbers or addresses.",
     privateNote: "Only Athul & Cathy will see this. It won't appear on the wall.",
-    sentPublic: "Your wish is on the garland ✨",
+    sentPublic: "Your wish is up on the wall ✨",
     sentPrivate: "Sent privately to Athul & Cathy 💌",
-    empty: "The garland is waiting for its first flower. Add your wish above.",
-    end: "You've reached the end of the garland. Thank you for all the love 💕",
+    // Under the RSVP button — a reminder, not a link, so nobody leaves the
+    // form before submitting it.
+    rsvpReminder: "💌 Don't forget to leave a wish for Athul & Cathy. There's a wishes wall right after their note, further down.",
+    // The RSVP thank-you card's button: reads their note, then the wall.
+    rsvpThanksCta: "Read our note & leave a wish",
+    empty: "No wishes yet. Write the first one above.",
+    end: "That's every wish so far. Thank you for all the love 💕",
   },
 
   help: {

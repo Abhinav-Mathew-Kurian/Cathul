@@ -66,11 +66,13 @@ function sendLove(origin: DOMRect | undefined) {
   haptic(20);
 }
 
-// The sections between here and the wishes skip rendering until they're near
+// After RSVPing, guests go to the couple's note — the wishes wall is right
+// after it, so they read the note and then write back, instead of being
+// flung past it. The sections in between skip rendering until they're near
 // the screen (content-visibility in globals.css), so the first scroll aims
-// at estimated heights. Once it settles, a second pass lands exactly.
-function goToWishes(e: MouseEvent<HTMLAnchorElement>) {
-  const target = document.getElementById("wishes");
+// at estimated heights; once it settles, a second pass lands exactly.
+function goToNote(e: MouseEvent<HTMLAnchorElement>) {
+  const target = document.getElementById("note");
   if (!target) return;
   e.preventDefault();
   target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -256,14 +258,14 @@ export function Rsvp() {
                   : "Thank you for letting us know. You'll be in our hearts on the day."}
               </motion.p>
               <motion.a
-                href="#wishes"
-                onClick={goToWishes}
+                href="#note"
+                onClick={goToNote}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 1.9 }}
                 className="mt-5 inline-flex items-center gap-2 rounded-full bg-rose px-5 py-2.5 font-body text-sm font-bold text-white shadow-[var(--card-shadow)] transition hover:bg-rose-deep active:scale-[0.98]"
               >
-                Leave a wish for {wedding.couple.groom} &amp; {wedding.couple.bride}
+                {wedding.wishes.rsvpThanksCta}
                 <HeartIcon className="h-4 w-4" />
               </motion.a>
               {attendance === "yes" && (
@@ -434,6 +436,10 @@ export function Rsvp() {
                   Something went wrong. Please try again.
                 </p>
               )}
+
+              <p className="text-center font-body text-xs leading-relaxed text-ink/55">
+                {wedding.wishes.rsvpReminder}
+              </p>
             </motion.form>
           )}
           </AnimatePresence>

@@ -17,13 +17,13 @@ import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
 import { StringLights } from "./StringLights";
 
-// The wall is a jasmine garland — mulla poo, as worn at every Kerala wedding
-// — with each wish hanging off it on a thread, woven as a strip of kasavu:
-// off-white handloom with a gold zari border. See the .garland / .kasavu
-// rules in globals.css for the textiles themselves.
+// Guests write back to "A Note From Us" on pages torn from the same notepad:
+// cream ruled paper, a torn top edge, handwriting on the lines, and a name
+// signed in rose script — exactly how the couple signed theirs. The form is
+// a blank page from that pad. See .wish-paper in globals.css.
 
 const VIEWPORT = { once: true, margin: "-60px" } as const;
-const BLOOM_COLORS = ["#fffdf6", "#f6ecd2", "#e2c27a", "#c9a04e", "#f6d9ce"];
+const HEART_COLORS = ["#c1594a", "#e6a99b", "#f6d9ce", "#fdfbf3", "#8ca4c4"];
 
 type Page = { wishes: PublicWish[]; nextCursor: string | null; total?: number };
 
@@ -51,14 +51,13 @@ function merge(current: PublicWish[], incoming: PublicWish[]) {
   return [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || (a.id < b.id ? 1 : -1));
 }
 
-// Each wish gets its own border weave and a slight hang, stable per wish.
+// Stable per wish: each page sits at its own slight angle, with a rose or
+// dusk-blue heart in the corner — the two heart colours of Our Story.
 function hash(text: string) {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
   return h >>> 0;
 }
-
-const BORDERS = ["kasavu-band", "kasavu-lines", "kasavu-temple"] as const;
 
 const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 const dateOnly = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" });
@@ -74,21 +73,23 @@ function when(iso: string, now: number) {
 
 function WishCard({ wish, now, order, fresh }: { wish: PublicWish; now: number; order: number; fresh: boolean }) {
   const h = hash(wish.id);
-  const tilt = (((h >>> 4) % 17) - 8) / 10; // -0.8° … 0.8°, hanging from its thread
+  const tilt = (((h >>> 4) % 19) - 9) / 10; // -0.9° … 0.9°
   return (
     <li
-      className={`wish ${fresh ? "wish-drop" : "wish-in"}`}
+      className={fresh ? "wish-land" : "wish-in"}
       style={fresh ? undefined : { animationDelay: `${Math.min(order, 7) * 60}ms` }}
     >
-      <span aria-hidden className="wish-knot" />
-      <div className={fresh ? "wish-swing" : undefined}>
-        <article className={`kasavu ${BORDERS[h % BORDERS.length]}`} style={{ transform: `rotate(${tilt}deg)` }}>
-          <p className="whitespace-pre-line font-hand text-[1.4rem] leading-[1.3] text-ink/85 [overflow-wrap:anywhere]">
+      <div className="wish-shadow">
+        <article className="wish-paper torn-paper-top" style={{ transform: `rotate(${tilt}deg)` }}>
+          <HeartIcon
+            className={`absolute top-6 right-5 h-3.5 w-3.5 ${h % 2 ? "text-rose" : "text-dusk"}`}
+          />
+          <p className="wish-lines-text whitespace-pre-line pr-4 font-hand text-ink/85 [overflow-wrap:anywhere]">
             {wish.message}
           </p>
-          <footer className="mt-2 flex items-end justify-between gap-3">
-            <span className="min-w-0 truncate font-script text-[1.75rem] leading-none text-[#8a6a28]">{wish.name}</span>
-            <time dateTime={wish.createdAt} className="flex-shrink-0 pb-0.5 font-body text-[11px] text-ink/40">
+          <footer className="flex items-end justify-between gap-3">
+            <span className="min-w-0 truncate font-script text-[2rem] leading-[2rem] text-rose-deep">{wish.name}</span>
+            <time dateTime={wish.createdAt} className="flex-shrink-0 pb-1 font-body text-[11px] text-ink/40">
               {when(wish.createdAt, now)}
             </time>
           </footer>
@@ -100,18 +101,19 @@ function WishCard({ wish, now, order, fresh }: { wish: PublicWish; now: number; 
 
 function SkeletonCard() {
   return (
-    <li className="wish" aria-hidden>
-      <span className="wish-knot" />
-      <div className="kasavu kasavu-lines animate-pulse">
-        <div className="h-4 w-11/12 rounded-sm bg-[#e9dfc4]/70" />
-        <div className="mt-2.5 h-4 w-3/5 rounded-sm bg-[#e9dfc4]/70" />
-        <div className="mt-4 h-5 w-28 rounded-sm bg-[#e9dfc4]/60" />
+    <li aria-hidden>
+      <div className="wish-shadow">
+        <div className="wish-paper torn-paper-top animate-pulse">
+          <div className="mt-3 h-3.5 w-11/12 rounded bg-ink/[0.07]" />
+          <div className="mt-[1.3rem] h-3.5 w-3/5 rounded bg-ink/[0.07]" />
+          <div className="mt-6 h-5 w-24 rounded bg-rose/10" />
+        </div>
       </div>
     </li>
   );
 }
 
-// ── The form ────────────────────────────────────────────────────────────────
+// ── The form: a blank page from the same pad ────────────────────────────────
 
 function GlobeIcon({ className = "" }: { className?: string }) {
   return (
@@ -192,11 +194,11 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
           x: origin.left + origin.width / 2,
           y: origin.top,
           count: 26,
-          speed: 480,
-          shapes: ["petal", "petal", "heart"],
-          colors: BLOOM_COLORS,
+          speed: 500,
+          shapes: ["heart", "petal"],
+          colors: HEART_COLORS,
           size: [6, 12],
-          life: 2.6,
+          life: 2.4,
         });
       }
       haptic([10, 30, 16]);
@@ -214,17 +216,12 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
   const isPublic = visibility === "public";
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      onFocusCapture={markStarted}
-      noValidate
-      className="kasavu kasavu-band kasavu-form space-y-5 text-left"
-    >
-      <div>
-        <label htmlFor="wish-message" className="font-body text-sm font-bold text-ink">
-          Your wish
-        </label>
-        <div className="relative mt-1.5">
+    <form onSubmit={handleSubmit} onFocusCapture={markStarted} noValidate className="space-y-5 text-left">
+      <div className="wish-shadow">
+        <div className="wish-paper torn-paper-top">
+          <label htmlFor="wish-message" className="sr-only">
+            Your wish
+          </label>
           <textarea
             id="wish-message"
             rows={4}
@@ -237,60 +234,58 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
             placeholder={wedding.wishes.placeholder}
             aria-invalid={!!errors.message}
             aria-describedby={`wish-count${errors.message ? " wish-message-error" : ""}`}
-            className={`w-full resize-none rounded-sm border bg-white/70 px-3 pt-2 pb-6 font-hand text-[1.35rem] leading-8 text-ink placeholder:text-ink/35 focus:border-[#c9a04e] focus:outline-none focus:ring-2 focus:ring-[#c9a04e]/25 ${
-              errors.message ? "border-rose-deep" : "border-[#e6d8b3]"
-            }`}
+            className="wish-lines-text block w-full resize-none border-0 bg-transparent p-0 font-hand text-ink placeholder:text-ink/35 focus:outline-none focus:ring-0"
+          />
+          <p className="font-hand text-[1.45rem] leading-[2rem] text-ink/60">With love,</p>
+          <label htmlFor="wish-name" className="sr-only">
+            Your name
+          </label>
+          <input
+            id="wish-name"
+            type="text"
+            autoComplete="name"
+            maxLength={NAME_MAX}
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              edited();
+            }}
+            placeholder="Your name"
+            aria-invalid={!!errors.name}
+            aria-describedby={errors.name ? "wish-name-error" : undefined}
+            className="block w-full border-0 border-b border-dashed border-rose/35 bg-transparent px-0 pt-0 pb-1 font-script text-[2.1rem] leading-[2.4rem] text-rose-deep placeholder:text-rose/40 focus:border-rose focus:outline-none focus:ring-0"
           />
           <span
             id="wish-count"
-            className={`pointer-events-none absolute right-2.5 bottom-1.5 font-body text-[10px] tabular-nums ${
-              count > MESSAGE_MAX - 40 ? "text-rose-deep" : "text-ink/35"
+            className={`pointer-events-none absolute top-5 right-5 font-body text-[10px] tabular-nums ${
+              count > MESSAGE_MAX - 40 ? "text-rose-deep" : "text-ink/30"
             }`}
           >
             {count}/{MESSAGE_MAX}
           </span>
         </div>
-        {errors.message && (
-          <p id="wish-message-error" role="alert" className="mt-1 font-body text-xs text-rose-deep">
-            {errors.message}
-          </p>
-        )}
       </div>
-
-      <div>
-        <label htmlFor="wish-name" className="font-body text-sm font-bold text-ink">
-          Signed by
-        </label>
-        <input
-          id="wish-name"
-          type="text"
-          autoComplete="name"
-          maxLength={NAME_MAX}
-          value={name}
-          onChange={(e) => {
-            setName(e.target.value);
-            edited();
-          }}
-          placeholder="Your name"
-          aria-invalid={!!errors.name}
-          aria-describedby={errors.name ? "wish-name-error" : undefined}
-          className={`mt-0.5 w-full border-0 border-b bg-transparent px-0 pt-1 pb-1.5 font-script text-[1.9rem] leading-tight text-[#8a6a28] placeholder:font-body placeholder:text-sm placeholder:text-ink/35 focus:outline-none focus:ring-0 ${
-            errors.name ? "border-rose-deep" : "border-[#d9c38f] focus:border-[#c9a04e]"
-          }`}
-        />
-        {errors.name && (
-          <p id="wish-name-error" role="alert" className="mt-1 font-body text-xs text-rose-deep">
-            {errors.name}
-          </p>
-        )}
-      </div>
+      {(errors.message || errors.name) && (
+        <div className="-mt-1 space-y-1">
+          {errors.message && (
+            <p id="wish-message-error" role="alert" className="font-body text-xs text-rose-deep">
+              {errors.message}
+            </p>
+          )}
+          {errors.name && (
+            <p id="wish-name-error" role="alert" className="font-body text-xs text-rose-deep">
+              {errors.name}
+            </p>
+          )}
+        </div>
+      )}
 
       <fieldset>
-        <legend className="font-body text-sm font-bold text-ink">Who can read it</legend>
-        <div role="radiogroup" aria-label="Who can read your wish" className="relative mt-1.5 grid grid-cols-2 rounded-full bg-[#efe4c7]/70 p-1">
+        <legend className="font-body text-sm font-bold text-ink">Who can read it?</legend>
+        <div role="radiogroup" aria-label="Who can read your wish" className="relative mt-2 grid grid-cols-2 rounded-full border border-ink/10 bg-white/70 p-1">
           <span
             aria-hidden
-            className="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full bg-white shadow-[0_1px_0_rgba(201,160,78,0.45),0_2px_6px_-2px_rgba(80,60,20,0.25)] transition-transform duration-300 ease-out"
+            className="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full bg-rose shadow-sm transition-transform duration-300 ease-out"
             style={{ transform: isPublic ? "translateX(0)" : "translateX(100%)" }}
           />
           {(
@@ -309,8 +304,8 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
                 setErrors((prev) => ({ ...prev, message: undefined }));
                 edited();
               }}
-              className={`relative flex items-center justify-center gap-1.5 rounded-full py-2.5 font-body text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a04e] ${
-                visibility === value ? "text-[#8a6a28]" : "text-ink/45"
+              className={`relative flex items-center justify-center gap-1.5 rounded-full py-2.5 font-body text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose focus-visible:ring-offset-2 ${
+                visibility === value ? "text-white" : "text-ink/55"
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -320,11 +315,15 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
         </div>
         <p
           key={visibility}
-          className={`wish-note mt-2.5 flex gap-2 rounded-sm px-3 py-2.5 font-body text-xs leading-relaxed ${
-            isPublic ? "border border-[#ecd49c] bg-[#fff6e0] text-[#6e5316]" : "border border-dusk/25 bg-dusk/10 text-ink/70"
+          className={`wish-note mt-2.5 flex gap-2 rounded-2xl border bg-white/65 px-3.5 py-2.5 font-body text-xs leading-relaxed text-ink/70 ${
+            isPublic ? "border-rose/20" : "border-dusk/30"
           }`}
         >
-          {isPublic ? <GlobeIcon className="mt-px h-4 w-4 flex-shrink-0" /> : <LockIcon className="mt-px h-4 w-4 flex-shrink-0" />}
+          {isPublic ? (
+            <GlobeIcon className="mt-px h-4 w-4 flex-shrink-0 text-rose" />
+          ) : (
+            <LockIcon className="mt-px h-4 w-4 flex-shrink-0 text-dusk-deep" />
+          )}
           <span>{isPublic ? wedding.wishes.publicWarning : wedding.wishes.privateNote}</span>
         </p>
       </fieldset>
@@ -347,13 +346,13 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
         disabled={status === "sending"}
         className="flex w-full items-center justify-center gap-2 rounded-full bg-rose py-4 font-body text-sm font-bold text-white shadow-[var(--card-shadow)] transition hover:bg-rose-deep active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {status === "sending" ? "Sending..." : isPublic ? "Add your wish to the garland" : "Send privately"}
+        {status === "sending" ? "Sending..." : isPublic ? "Post your wish" : "Send privately"}
         {status !== "sending" && <HeartIcon className="h-4 w-4" />}
       </button>
 
       <div aria-live="polite">
         {status === "sent" && (
-          <p className="wish-note text-center font-hand text-xl text-[#8a6a28]">
+          <p className="wish-note text-center font-hand text-2xl text-rose-deep">
             {sentAs === "public" ? wedding.wishes.sentPublic : wedding.wishes.sentPrivate}
           </p>
         )}
@@ -454,7 +453,6 @@ export function Wishes() {
   }
 
   const remaining = total !== null ? Math.max(0, total - wishes.length) : null;
-  const ended = !cursor && state === "ready";
 
   return (
     <section ref={sectionRef} id="wishes" className="wishes-bg relative overflow-hidden px-5 pt-16 pb-16">
@@ -481,66 +479,68 @@ export function Wishes() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={VIEWPORT}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className="mt-8"
+          className="mt-10"
         >
           <WishForm onPosted={handlePosted} />
         </motion.div>
 
         {!!total && (
-          <p className="mt-10 text-center font-hand text-2xl text-[#8a6a28]">
-            {total} {total === 1 ? "wish" : "wishes"} on the garland
+          <p className="mt-12 flex items-center justify-center gap-2 font-hand text-2xl text-ink/70">
+            <HeartIcon className="h-4 w-4 text-rose" />
+            {total} {total === 1 ? "wish" : "wishes"} and counting
+            <HeartIcon className="h-4 w-4 text-dusk" />
           </p>
         )}
 
-        {state === "error" && wishes.length === 0 ? (
-          <div className="mt-10 text-center">
-            <p className="font-body text-sm text-ink/60">The wishes didn&apos;t load.</p>
-            <button
-              type="button"
-              onClick={refresh}
-              className="mt-3 rounded-full border border-[#d9c38f] bg-white/70 px-5 py-2 font-body text-xs font-bold text-[#8a6a28]"
-            >
-              Try again
-            </button>
-          </div>
-        ) : state === "ready" && wishes.length === 0 ? (
-          <div className="garland garland-empty mt-10">
-            <span aria-hidden className="garland-flower" />
-            <p className="font-hand text-2xl leading-snug text-ink/60">{wedding.wishes.empty}</p>
-          </div>
-        ) : (
-          <div className="garland mt-6">
-            <ul aria-label="Wishes from friends and family" aria-busy={state !== "ready"} className="space-y-7 pt-3">
+        <div className="mt-8">
+          {state === "error" && wishes.length === 0 ? (
+            <div className="text-center">
+              <p className="font-body text-sm text-ink/60">The wishes didn&apos;t load.</p>
+              <button
+                type="button"
+                onClick={refresh}
+                className="mt-3 rounded-full border-2 border-rose/30 bg-white/70 px-5 py-2 font-body text-xs font-bold text-rose-deep"
+              >
+                Try again
+              </button>
+            </div>
+          ) : state === "ready" && wishes.length === 0 ? (
+            <div className="wish-shadow">
+              <div className="wish-paper torn-paper-top text-center">
+                <p className="wish-lines-text font-hand text-ink/50">{wedding.wishes.empty}</p>
+              </div>
+            </div>
+          ) : (
+            <ul aria-label="Wishes from friends and family" aria-busy={state !== "ready"} className="space-y-7">
               {wishes.length === 0
                 ? [0, 1, 2].map((i) => <SkeletonCard key={i} />)
                 : wishes.map((wish, i) => (
                     <WishCard key={wish.id} wish={wish} now={now} order={i % 8} fresh={freshIds.has(wish.id)} />
                   ))}
             </ul>
-            {ended && wishes.length > 0 && <span aria-hidden className="garland-flower" />}
-          </div>
-        )}
+          )}
 
-        {cursor && wishes.length > 0 && (
-          <div className="mt-7 pl-10">
-            <button
-              type="button"
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="rounded-full border border-[#d9c38f] bg-[#fffdf6] px-5 py-2.5 font-body text-sm font-bold text-[#8a6a28] shadow-[0_6px_14px_-10px_rgba(80,60,20,0.5)] transition active:scale-[0.98] disabled:opacity-60"
-            >
-              {loadingMore ? "Loading..." : `Show more wishes${remaining ? ` (${remaining} left)` : ""}`}
-            </button>
-            {moreError && (
-              <p role="alert" className="mt-2 font-body text-xs text-rose-deep">
-                More wishes didn&apos;t load. Tap to try again.
-              </p>
-            )}
-          </div>
-        )}
-        {ended && wishes.length > 0 && (
-          <p className="mt-3 pl-10 font-hand text-xl text-ink/50">{wedding.wishes.end}</p>
-        )}
+          {cursor && wishes.length > 0 && (
+            <div className="mt-9 text-center">
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="rounded-full border-2 border-rose/30 bg-white/70 px-6 py-3 font-body text-sm font-bold text-rose-deep shadow-sm transition hover:bg-white active:scale-[0.98] disabled:opacity-60"
+              >
+                {loadingMore ? "Loading..." : `Show more wishes${remaining ? ` (${remaining} more)` : ""}`}
+              </button>
+              {moreError && (
+                <p role="alert" className="mt-2 font-body text-xs text-rose-deep">
+                  More wishes didn&apos;t load. Tap to try again.
+                </p>
+              )}
+            </div>
+          )}
+          {!cursor && state === "ready" && wishes.length > 0 && (
+            <p className="mt-9 text-center font-hand text-xl text-ink/55">{wedding.wishes.end}</p>
+          )}
+        </div>
       </div>
     </section>
   );

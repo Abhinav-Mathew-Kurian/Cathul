@@ -63,7 +63,7 @@ export function Note() {
   const paperOpacity = useTransform(scrollYProgress, [0, 0.2], [0, 1]);
 
   return (
-    <section className="note-bg relative overflow-hidden px-5 pt-16 pb-16">
+    <section id="note" className="note-bg relative overflow-hidden px-5 pt-16 pb-16">
       <StringLights seedOffset={600} />
       <FallingPetals count={7} seedOffset={600} className="absolute inset-0 z-0" />
 
