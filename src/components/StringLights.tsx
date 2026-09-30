@@ -1,8 +1,9 @@
 "use client";
 
-import { useId, useMemo, useRef } from "react";
-import { motion, useInView, useTransform } from "motion/react";
-import { useMusicPulse } from "./MusicProvider";
+import { memo, useId, useMemo, useRef, type CSSProperties } from "react";
+import { motion, useInView } from "motion/react";
+import { restStyle } from "@/lib/pulse";
+import { usePulse } from "./MusicProvider";
 
 // Deterministic pseudo-randomness (no Math.random), same trick as
 // FallingPetals — each bulb's position comes from its own index so
@@ -32,30 +33,27 @@ const FLARE_GLOW =
 // alternate which of them flashes on each beat, so the strand "chases" in
 // time with the song. Fully transparent while nothing is playing.
 //
-// An HTML layer laid over the SVG rather than an SVG circle: it changes every
-// frame while music plays, and an SVG child can't get its own compositor
-// layer — each change repainted the whole strand. Placed and sized in the
-// SVG's own viewBox units (as percentages), so it lands exactly where the
-// circle did, stretched the same way by preserveAspectRatio="none".
+// An HTML layer laid over the SVG rather than an SVG circle, so its beat
+// animation (a precompiled compositor animation, see lib/pulse.ts) never
+// repaints the strand. Placed and sized in the SVG's own viewBox units (as
+// percentages), so it lands exactly where the circle did, stretched the same
+// way by preserveAspectRatio="none".
 function BulbFlare({ index, x, y }: { index: number; x: number; y: number }) {
-  const { level, beat, beatCount } = useMusicPulse();
-  const opacity = useTransform(() => {
-    const onBeat = (beatCount.get() + index) % 2 === 0;
-    return Math.min(1, level.get() * 0.35 + beat.get() * (onBeat ? 0.75 : 0.15));
-  });
-  const scale = useTransform(() => 0.8 + level.get() * 0.5 + beat.get() * 0.35);
+  const ref = useRef<HTMLSpanElement>(null);
+  const channel = index % 2 === 0 ? "flareEven" : "flareOdd";
+  usePulse(ref, channel);
 
   return (
-    <motion.span
-      className="absolute will-change-[transform,opacity]"
+    <span
+      ref={ref}
+      className="absolute"
       style={{
         left: `${((x - FLARE_R) / WIDTH) * 100}%`,
         top: `${((y - FLARE_R) / HEIGHT) * 100}%`,
         width: `${((FLARE_R * 2) / WIDTH) * 100}%`,
         height: `${((FLARE_R * 2) / HEIGHT) * 100}%`,
         background: FLARE_GLOW,
-        opacity,
-        scale,
+        ...(restStyle(channel) as CSSProperties),
       }}
     />
   );
@@ -73,7 +71,7 @@ type StringLightsProps = {
 // A strand of bulbs that switches on left-to-right the moment its section
 // scrolls into view — the seam between one section and the next arriving
 // already lit.
-export function StringLights({
+function StringLightsImpl({
   count = 8,
   seedOffset = 0,
   className = "absolute inset-x-0 top-0 z-10 h-14",
@@ -143,3 +141,8 @@ export function StringLights({
     </div>
   );
 }
+
+// Memoized: purely decorative with constant props, so a parent re-render
+// (an RSVP keystroke, a music state change) never re-renders it.
+export const StringLights = memo(StringLightsImpl);
+

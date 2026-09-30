@@ -1,6 +1,7 @@
 "use client";
 
-import { motion } from "motion/react";
+import { useRef } from "react";
+import { motion, useInView } from "motion/react";
 import { wedding } from "@/content/wedding";
 import { CallIcon } from "./doodles";
 import { BeatingHeart } from "./BeatingHeart";
@@ -26,8 +27,12 @@ function ContactRow({
   fromSide: "left" | "right";
   delay: number;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const onScreen = useInView(ref, { margin: "80px" });
+
   return (
     <motion.div
+      ref={ref}
       initial={{ opacity: 0, x: fromSide === "left" ? -28 : 28 }}
       whileInView={{ opacity: 1, x: 0 }}
       viewport={VIEWPORT}
@@ -45,11 +50,16 @@ function ContactRow({
       >
         {/* A 0.7s wiggle, then 2.6s still, looped. The pause is baked into
             the keyframes rather than using repeatDelay, which would force
-            motion to run it on the main thread instead of via WAAPI. */}
+            motion to run it on the main thread instead of via WAAPI.
+            Only loops while the row is on screen. */}
         <motion.span
           className="inline-block"
-          animate={{ transform: WIGGLE }}
-          transition={{ duration: WIGGLE_S + WIGGLE_REST_S, times: WIGGLE_TIMES, repeat: Infinity, ease: "easeInOut", delay }}
+          animate={onScreen ? { transform: WIGGLE } : { transform: "rotate(0deg)" }}
+          transition={
+            onScreen
+              ? { duration: WIGGLE_S + WIGGLE_REST_S, times: WIGGLE_TIMES, repeat: Infinity, ease: "easeInOut", delay }
+              : { duration: 0 }
+          }
         >
           <CallIcon className="h-4 w-4" />
         </motion.span>

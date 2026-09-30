@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { memo, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { useMotionValueEvent } from "motion/react";
 import { useMusicPulse } from "./MusicProvider";
 
@@ -76,7 +76,7 @@ function buildKeyframes(seed: number): Omit<Petal, "id" | "style"> {
   };
 }
 
-export function FallingPetals({
+function FallingPetalsImpl({
   count = 18,
   seedOffset = 0,
   className = "absolute inset-0 z-0",
@@ -166,3 +166,8 @@ export function FallingPetals({
     </div>
   );
 }
+
+// Memoized: purely decorative with constant props, so a parent re-render
+// (an RSVP keystroke, a music state change) never re-renders it.
+export const FallingPetals = memo(FallingPetalsImpl);
+

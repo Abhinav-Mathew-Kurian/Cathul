@@ -1,7 +1,7 @@
 "use client";
 
-import { Fragment, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { Fragment, useRef, useState } from "react";
+import { AnimatePresence, motion, useInView } from "motion/react";
 import Image from "next/image";
 import { wedding, type Track } from "@/content/wedding";
 import { HeartIcon } from "./doodles";
@@ -114,12 +114,52 @@ function TrackLabel({ track }: { track: Track }) {
   );
 }
 
+// The only part of the card that needs the playhead: it re-renders on every
+// `timeupdate` (several times a second while a song plays), so it's kept to
+// itself — reading progress in Music() re-rendered the whole section,
+// petals and string lights included, the entire time music was playing.
+function ProgressRow() {
+  const { musicEnabled } = useMusic();
+  const { currentTime, duration, seek } = useMusicProgress();
+  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  return (
+    <div className="mt-4 flex items-center gap-2">
+      <span className="w-8 flex-shrink-0 text-right font-body text-[10px] tabular-nums text-white/50">
+        {formatTime(currentTime)}
+      </span>
+      <div className="has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-rose has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-[#2b2b33] relative h-1.5 flex-1 overflow-hidden rounded-full bg-white/15">
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-rose transition-[width]"
+          style={{ width: `${progressPercent}%` }}
+        />
+        <input
+          type="range"
+          min={0}
+          max={duration || 0}
+          step={0.1}
+          value={Math.min(currentTime, duration || 0)}
+          onChange={(e) => seek(Number(e.target.value))}
+          disabled={!musicEnabled || duration === 0}
+          aria-label="Seek"
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+        />
+      </div>
+      <span className="w-8 flex-shrink-0 font-body text-[10px] tabular-nums text-white/50">
+        {formatTime(duration)}
+      </span>
+    </div>
+  );
+}
+
 export function Music() {
   const { currentTrack, isPlaying, musicEnabled, audioError, togglePlay, goToNext, goToPrevious, toggleMusicEnabled } =
     useMusic();
-  const { currentTime, duration, seek } = useMusicProgress();
-
-  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+  // The card's looping effects (glow, record spin, equalizer) only run while
+  // it's actually on screen.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const cardOnScreen = useInView(cardRef, { margin: "80px" });
+  const animating = isPlaying && cardOnScreen;
 
   return (
     <section id="music" className="music-bg relative overflow-hidden px-5 pt-16 pb-6">
@@ -149,6 +189,7 @@ export function Music() {
         </motion.div>
 
         <motion.div
+          ref={cardRef}
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={VIEWPORT}
@@ -162,11 +203,11 @@ export function Music() {
               aria-hidden
               className="absolute inset-0 m-auto h-40 w-40 rounded-full bg-rose/40 blur-2xl"
               animate={
-                isPlaying
+                animating
                   ? { opacity: [0.25, 0.55, 0.25], transform: ["scale(0.9)", "scale(1.05)", "scale(0.9)"] }
                   : { opacity: 0.15, transform: "scale(0.9)" }
               }
-              transition={{ duration: 3, repeat: isPlaying ? Infinity : 0, ease: "easeInOut" }}
+              transition={{ duration: 3, repeat: animating ? Infinity : 0, ease: "easeInOut" }}
             />
 
             <div className="relative flex h-44 w-44 items-center justify-center">
@@ -177,7 +218,7 @@ export function Music() {
                 aria-hidden
                 className="absolute inset-0 animate-[spin_6s_linear_infinite] rounded-full"
                 style={{
-                  animationPlayState: isPlaying ? "running" : "paused",
+                  animationPlayState: animating ? "running" : "paused",
                   background:
                     "repeating-radial-gradient(circle, #17171c 0px, #17171c 3px, #26262e 3px, #26262e 6px)",
                 }}
@@ -210,37 +251,13 @@ export function Music() {
             >
               <div className="mt-5 flex items-center justify-center gap-2">
                 <p className="text-center font-body text-sm font-bold text-white">{currentTrack.title}</p>
-                <EqualizerBars animate={isPlaying} />
+                <EqualizerBars animate={animating} />
               </div>
               <p className="text-center font-body text-xs text-white/50">{currentTrack.artist}</p>
             </motion.div>
           </AnimatePresence>
 
-          <div className="mt-4 flex items-center gap-2">
-            <span className="w-8 flex-shrink-0 text-right font-body text-[10px] tabular-nums text-white/50">
-              {formatTime(currentTime)}
-            </span>
-            <div className="has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-rose has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-[#2b2b33] relative h-1.5 flex-1 overflow-hidden rounded-full bg-white/15">
-              <div
-                className="absolute inset-y-0 left-0 rounded-full bg-rose transition-[width]"
-                style={{ width: `${progressPercent}%` }}
-              />
-              <input
-                type="range"
-                min={0}
-                max={duration || 0}
-                step={0.1}
-                value={Math.min(currentTime, duration || 0)}
-                onChange={(e) => seek(Number(e.target.value))}
-                disabled={!musicEnabled || duration === 0}
-                aria-label="Seek"
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-              />
-            </div>
-            <span className="w-8 flex-shrink-0 font-body text-[10px] tabular-nums text-white/50">
-              {formatTime(duration)}
-            </span>
-          </div>
+          <ProgressRow />
 
           {audioError && (
             <p role="alert" className="mt-2 text-center font-body text-xs text-rose">

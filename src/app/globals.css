@@ -68,6 +68,49 @@ body {
   letter-spacing: 0.22em;
 }
 
+/* Every section below the hero skips style, layout and paint entirely while
+   it's well off screen — the browser only does that work for the part of
+   this long page near the viewport. Each section already clips its own
+   overflow and is position: relative, so the containment this implies
+   changes nothing visually. `auto` remembers each section's real height once
+   it has rendered, so nothing jumps when scrolling back up. (The gallery
+   lightbox is portalled to <body>, since containment would trap a fixed
+   overlay inside its section.) */
+main > section:not(:first-child),
+main > footer {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1000px;
+}
+
+/* Each section's placeholder height until it first renders — measured on a
+   390px-wide phone, so the page's total height barely shifts even when
+   someone flings straight to the bottom before the sections in between have
+   ever rendered. */
+#story {
+  contain-intrinsic-size: auto 1380px;
+}
+#celebrations {
+  contain-intrinsic-size: auto 1480px;
+}
+#rsvp {
+  contain-intrinsic-size: auto 1000px;
+}
+#gallery {
+  contain-intrinsic-size: auto 1800px;
+}
+#music {
+  contain-intrinsic-size: auto 1050px;
+}
+main > section.note-bg {
+  contain-intrinsic-size: auto 1060px;
+}
+main > section.help-bg {
+  contain-intrinsic-size: auto 845px;
+}
+main > footer {
+  contain-intrinsic-size: auto 400px;
+}
+
 /* Falling petals — each petal is animated by FallingPetals via the Web
    Animations API, with concrete per-petal keyframes (compositor-friendly)
    and only while its section is on screen. Un-animated petals stay hidden. */

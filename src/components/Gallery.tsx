@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { wedding, type GalleryPhoto } from "@/content/wedding";
@@ -13,6 +14,8 @@ import { StringLights } from "./StringLights";
 const VIEWPORT = { once: true, margin: "-60px" } as const;
 
 const DOUBLE_TAP_MS = 280;
+
+const subscribeNothing = () => () => {};
 const HEART_COLORS = ["#c1594a", "#e6a99b", "#f6d9ce", "#fdfbf3"];
 
 // A quick second tap turns a tap into a "like". The first tap waits one
@@ -150,6 +153,7 @@ function LightboxPhoto({ photo, onLike }: { photo: GalleryPhoto; onLike: () => v
 
 export function Gallery() {
   const [active, setActive] = useState<GalleryPhoto | null>(null);
+  const isClient = useSyncExternalStore(subscribeNothing, () => true, () => false);
   const [liked, setLiked] = useState<ReadonlySet<string>>(() => new Set());
 
   function like(id: string) {
@@ -225,42 +229,49 @@ export function Gallery() {
         </motion.div>
       </div>
 
-      <AnimatePresence>
-        {active && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 px-6"
-            onClick={() => setActive(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 260, damping: 22 }}
-              className="relative w-full max-w-xs rounded-2xl bg-white shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Only the photo needs clipping to the card's rounded top
-                  corners — clipping the whole card cut off the close button,
-                  which is deliberately positioned to hang off its edge. */}
-              <LightboxPhoto photo={active} onLike={() => like(active.id)} />
-              <p className="rounded-b-2xl bg-white p-4 text-center font-body text-sm font-semibold text-ink">
-                {active.caption}
-              </p>
-              <button
-                type="button"
+      {/* Portalled to <body>: sections use content-visibility (globals.css),
+          whose containment would otherwise trap this fixed overlay inside
+          the Gallery section instead of covering the screen. */}
+      {isClient &&
+        createPortal(
+          <AnimatePresence>
+            {active && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 px-6"
                 onClick={() => setActive(null)}
-                className="absolute -right-3 -top-3 flex h-8 w-8 items-center justify-center rounded-full bg-rose text-white shadow-md"
-                aria-label="Close photo"
               >
-                ×
-              </button>
-            </motion.div>
-          </motion.div>
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                  className="relative w-full max-w-xs rounded-2xl bg-white shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Only the photo needs clipping to the card's rounded top
+                      corners — clipping the whole card cut off the close button,
+                      which is deliberately positioned to hang off its edge. */}
+                  <LightboxPhoto photo={active} onLike={() => like(active.id)} />
+                  <p className="rounded-b-2xl bg-white p-4 text-center font-body text-sm font-semibold text-ink">
+                    {active.caption}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActive(null)}
+                    className="absolute -right-3 -top-3 flex h-8 w-8 items-center justify-center rounded-full bg-rose text-white shadow-md"
+                    aria-label="Close photo"
+                  >
+                    ×
+                  </button>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
         )}
-      </AnimatePresence>
     </section>
   );
 }

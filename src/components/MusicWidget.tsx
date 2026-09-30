@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { AnimatePresence, motion, useTransform } from "motion/react";
-import { useMusic, useMusicPulse } from "./MusicProvider";
+import { useRef, useState, type CSSProperties } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { restStyle } from "@/lib/pulse";
+import { useMusic, usePulse } from "./MusicProvider";
 
 function PlayIcon({ className = "" }: { className?: string }) {
   return (
@@ -45,16 +46,17 @@ function MusicNoteIcon({ className = "" }: { className?: string }) {
   );
 }
 
-// A ring that ripples out of the button on every beat of the current song.
+// A ring that ripples out of the button on every beat of the current song —
+// a precompiled compositor animation (see lib/pulse.ts).
 function BeatRing() {
-  const { beat } = useMusicPulse();
-  const scale = useTransform(beat, [0, 1], [1.55, 1]);
-  const opacity = useTransform(beat, [0, 1], [0, 0.55]);
+  const ref = useRef<HTMLSpanElement>(null);
+  usePulse(ref, "ring");
   return (
-    <motion.span
+    <span
+      ref={ref}
       aria-hidden
-      className="absolute inset-0 rounded-full bg-rose will-change-[transform,opacity]"
-      style={{ scale, opacity }}
+      className="absolute inset-0 rounded-full bg-rose"
+      style={restStyle("ring") as CSSProperties}
     />
   );
 }

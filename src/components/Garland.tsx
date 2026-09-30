@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { motion, useScroll, useTransform, type MotionValue } from "motion/react";
 
 const WIDTH = 400;
@@ -37,7 +37,7 @@ function GarlandMark({
 
 // A garland that strings itself along its length as the section it sits in
 // scrolls into view — a drawn SVG line rather than a one-shot reveal.
-export function Garland({ className = "" }: { className?: string }) {
+function GarlandImpl({ className = "" }: { className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -63,3 +63,8 @@ export function Garland({ className = "" }: { className?: string }) {
     </div>
   );
 }
+
+// Memoized: purely decorative with constant props, so a parent re-render
+// (an RSVP keystroke, a music state change) never re-renders it.
+export const Garland = memo(GarlandImpl);
+

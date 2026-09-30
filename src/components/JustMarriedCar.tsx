@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { motion, type Easing } from "motion/react";
 import { HeartIcon } from "./doodles";
 
@@ -86,7 +86,7 @@ function CarArt({ moving }: { moving: boolean }) {
   );
 }
 
-export function JustMarriedCar() {
+function JustMarriedCarImpl() {
   // Tapping the car sends it round again.
   const [lap, setLap] = useState(0);
   const [moving, setMoving] = useState(true);
@@ -136,3 +136,8 @@ export function JustMarriedCar() {
     </button>
   );
 }
+
+// Memoized: purely decorative with constant props, so a parent re-render
+// (an RSVP keystroke, a music state change) never re-renders it.
+export const JustMarriedCar = memo(JustMarriedCarImpl);
+

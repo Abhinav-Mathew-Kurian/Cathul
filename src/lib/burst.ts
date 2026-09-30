@@ -1,76 +1,102 @@
-// A tiny canvas particle engine for one-shot celebratory bursts — the wax
-// seal cracking open, an RSVP landing. One shared full-screen canvas is
-// created on demand and removed again the moment the last particle dies, so
-// it costs nothing while idle and never sits over the page catching taps.
+// One-shot celebratory bursts — the wax seal cracking open, an RSVP landing,
+// a lantern, a double-tap. One shared full-screen canvas is created on
+// demand and removed again the moment the last particle dies, so it costs
+// nothing while idle and never sits over the page catching taps.
+//
+// Where the browser allows it, the canvas is handed to a Web Worker
+// (burst.worker.ts) that runs the physics and drawing off the main thread —
+// the seal's burst lands exactly while React, the gatefold and the hero are
+// all busy, and used to be the single biggest piece of main-thread work in
+// that moment. Anywhere that isn't supported (or until the worker has said
+// it works), the very same engine runs on the main thread instead.
 
-type Shape = "petal" | "heart" | "confetti";
+import { CONFETTI_COLORS, PETAL_COLORS, spawn, step, type BurstOptions, type Particle } from "./burst-engine";
 
-type Particle = {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  rot: number;
-  spin: number;
-  size: number;
-  color: string;
-  shape: Shape;
-  age: number;
-  life: number;
-  wobblePhase: number;
-  wobbleSpeed: number;
-  flipSpeed: number;
-};
-
-export type BurstOptions = {
-  /** Viewport coordinates (clientX/clientY space) the burst fires from. */
-  x: number;
-  y: number;
-  count?: number;
-  /** Direction in degrees — -90 is straight up, 0 is right. */
-  angle?: number;
-  /** Total cone width in degrees; 360 fires in every direction. */
-  spread?: number;
-  /** Launch speed in px/s (each particle gets a random share of it). */
-  speed?: number;
-  shapes?: Shape[];
-  colors?: string[];
-  /** Particle size range in px. */
-  size?: [number, number];
-  /** Average lifetime in seconds. */
-  life?: number;
-};
-
-// Light shapes (petals, hearts) hit a slow terminal velocity and float;
-// paper confetti is heavier and falls faster — terminal speed = gravity / drag.
-const PHYSICS: Record<Shape, { gravity: number; drag: number }> = {
-  petal: { gravity: 420, drag: 2.8 },
-  heart: { gravity: 360, drag: 2.6 },
-  confetti: { gravity: 720, drag: 2.2 },
-};
-
-export const PETAL_COLORS = ["#c1594a", "#e6a99b", "#f6d9ce", "#fdfbf3", "#8ca4c4"];
-export const CONFETTI_COLORS = ["#c1594a", "#ffcf7a", "#8ca4c4", "#5f7a52", "#f6d9ce", "#fdfbf3"];
+export { CONFETTI_COLORS, PETAL_COLORS, type BurstOptions };
 
 let canvas: HTMLCanvasElement | null = null;
-let ctx: CanvasRenderingContext2D | null = null;
-let particles: Particle[] = [];
-let raf = 0;
-let lastFrame = 0;
 
-function resize() {
-  if (!canvas || !ctx) return;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = Math.round(window.innerWidth * dpr);
-  canvas.height = Math.round(window.innerHeight * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+// ── Worker mode ──────────────────────────────────────────────────────────
+// Protocol: the page sends "session" (the transferred canvas) then "burst"
+// messages numbered by `sent`. When the worker runs out of particles it
+// replies "idle" with the last number it handled; only if that's still the
+// latest does the page send "end" and remove the canvas — otherwise a newer
+// burst is already on its way and the session carries on.
+
+let worker: Worker | null = null;
+let workerReady = false;
+let sent = 0;
+// This session's bursts, kept so they can be replayed on the main thread if
+// the worker fails partway — a burst is never silently lost.
+let inFlight: BurstOptions[] = [];
+
+function startWorker() {
+  if (worker || typeof window === "undefined") return;
+  if (typeof Worker === "undefined" || !("transferControlToOffscreen" in HTMLCanvasElement.prototype)) return;
+  try {
+    worker = new Worker(new URL("./burst.worker.ts", import.meta.url), { type: "module" });
+  } catch {
+    worker = null;
+    return;
+  }
+  worker.onmessage = ({ data }) => {
+    if (data.type === "ready") {
+      workerReady = data.supported;
+      if (!workerReady) stopWorker();
+    } else if (data.type === "idle" && data.seq === sent && canvas) {
+      worker?.postMessage({ type: "end" });
+      inFlight = [];
+      removeCanvas();
+    } else if (data.type === "failed") {
+      fallBack();
+    }
+  };
+  worker.onerror = fallBack;
 }
 
-function ensureCanvas() {
-  if (canvas) return;
-  canvas = document.createElement("canvas");
-  canvas.setAttribute("aria-hidden", "true");
-  Object.assign(canvas.style, {
+// The worker can't be used after all: switch to the main thread for good and
+// replay whatever this session had sent it.
+function fallBack() {
+  const replay = offscreen ? inFlight : [];
+  inFlight = [];
+  stopWorker();
+  removeCanvas();
+  for (const options of replay) burst(options);
+}
+
+function stopWorker() {
+  worker?.terminate();
+  worker = null;
+  workerReady = false;
+}
+
+// Spun up as soon as this module loads, so it's ready long before anyone
+// taps the seal.
+startWorker();
+
+// ── Shared canvas ────────────────────────────────────────────────────────
+
+let offscreen = false;
+
+function size() {
+  return { width: window.innerWidth, height: window.innerHeight, dpr: Math.min(window.devicePixelRatio || 1, 2) };
+}
+
+function onResize() {
+  const { width, height, dpr } = size();
+  if (offscreen) {
+    worker?.postMessage({ type: "resize", width, height, dpr });
+  } else if (canvas && ctx) {
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+}
+
+function createCanvas() {
+  const el = document.createElement("canvas");
+  el.setAttribute("aria-hidden", "true");
+  Object.assign(el.style, {
     position: "fixed",
     inset: "0",
     width: "100%",
@@ -78,121 +104,78 @@ function ensureCanvas() {
     pointerEvents: "none",
     zIndex: "70",
   });
-  ctx = canvas.getContext("2d");
-  document.body.appendChild(canvas);
-  resize();
-  window.addEventListener("resize", resize);
+  document.body.appendChild(el);
+  window.addEventListener("resize", onResize);
+  return el;
 }
 
-function teardown() {
-  window.removeEventListener("resize", resize);
+function removeCanvas() {
+  window.removeEventListener("resize", onResize);
   canvas?.remove();
   canvas = null;
+  offscreen = false;
   ctx = null;
+  particles = [];
+  if (raf) cancelAnimationFrame(raf);
   raf = 0;
 }
 
-function drawShape(c: CanvasRenderingContext2D, shape: Shape, s: number) {
-  c.beginPath();
-  if (shape === "confetti") {
-    c.rect(-s / 2, -s / 4, s, s / 2);
-  } else if (shape === "petal") {
-    // Teardrop — narrow at the stem, round at the tip.
-    c.moveTo(0, -s / 2);
-    c.bezierCurveTo(s * 0.55, -s * 0.2, s * 0.35, s * 0.5, 0, s / 2);
-    c.bezierCurveTo(-s * 0.35, s * 0.5, -s * 0.55, -s * 0.2, 0, -s / 2);
-  } else {
-    const h = s / 2;
-    c.moveTo(0, h * 0.9);
-    c.bezierCurveTo(-h * 1.3, 0, -h * 0.7, -h * 1.1, 0, -h * 0.35);
-    c.bezierCurveTo(h * 0.7, -h * 1.1, h * 1.3, 0, 0, h * 0.9);
-  }
-  c.fill();
-}
+// ── Main-thread fallback ─────────────────────────────────────────────────
 
-function step(now: number) {
+let ctx: CanvasRenderingContext2D | null = null;
+let particles: Particle[] = [];
+let raf = 0;
+let lastFrame = 0;
+
+function frame(now: number) {
   if (!ctx) return;
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  ctx.clearRect(0, 0, width, height);
-
-  particles = particles.filter((p) => p.age < p.life && p.y < height + 60);
-
-  for (const p of particles) {
-    const { gravity, drag } = PHYSICS[p.shape];
-    p.age += dt;
-    p.vx -= p.vx * drag * dt;
-    p.vy += (gravity - p.vy * drag) * dt;
-    // Side-to-side flutter, strongest once the launch speed has bled off.
-    p.x += p.vx * dt + Math.sin(p.age * p.wobbleSpeed + p.wobblePhase) * 38 * dt;
-    p.y += p.vy * dt;
-    p.rot += p.spin * dt;
-
-    const fadeIn = Math.min(1, p.age / 0.06);
-    const fadeOut = Math.min(1, (p.life - p.age) / 0.6);
-    ctx.save();
-    ctx.globalAlpha = Math.max(0, Math.min(fadeIn, fadeOut));
-    ctx.fillStyle = p.color;
-    ctx.translate(p.x, p.y);
-    ctx.rotate(p.rot);
-    // Squashing one axis on a cosine fakes the piece tumbling in 3D.
-    ctx.scale(1, p.shape === "heart" ? 1 : Math.cos(p.age * p.flipSpeed));
-    drawShape(ctx, p.shape, p.size);
-    ctx.restore();
-  }
-
+  particles = step(ctx, particles, dt, window.innerWidth, window.innerHeight);
   if (particles.length === 0) {
-    teardown();
+    raf = 0;
+    removeCanvas();
     return;
   }
-  raf = requestAnimationFrame(step);
+  raf = requestAnimationFrame(frame);
 }
+
+// ── API ──────────────────────────────────────────────────────────────────
 
 export function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-export function burst({
-  x,
-  y,
-  count = 60,
-  angle = -90,
-  spread = 360,
-  speed = 700,
-  shapes = ["petal"],
-  colors = PETAL_COLORS,
-  size = [7, 13],
-  life = 3.2,
-}: BurstOptions) {
+export function burst(options: BurstOptions) {
   if (typeof window === "undefined" || prefersReducedMotion()) return;
-  ensureCanvas();
 
-  for (let i = 0; i < count; i++) {
-    const direction = ((angle + (Math.random() - 0.5) * spread) * Math.PI) / 180;
-    const launch = speed * (0.35 + Math.random() * 0.75);
-    particles.push({
-      x,
-      y,
-      vx: Math.cos(direction) * launch,
-      vy: Math.sin(direction) * launch,
-      rot: Math.random() * Math.PI * 2,
-      spin: (Math.random() - 0.5) * 9,
-      size: size[0] + Math.random() * (size[1] - size[0]),
-      color: colors[i % colors.length],
-      shape: shapes[i % shapes.length],
-      age: 0,
-      life: life * (0.7 + Math.random() * 0.6),
-      wobblePhase: Math.random() * Math.PI * 2,
-      wobbleSpeed: 2.5 + Math.random() * 4,
-      flipSpeed: 3 + Math.random() * 7,
-    });
+  if (!canvas && worker && workerReady) {
+    try {
+      canvas = createCanvas();
+      const transferred = canvas.transferControlToOffscreen();
+      worker.postMessage({ type: "session", canvas: transferred, ...size() }, [transferred]);
+      offscreen = true;
+    } catch {
+      stopWorker();
+      removeCanvas();
+    }
   }
 
+  if (canvas && offscreen) {
+    inFlight.push(options);
+    worker?.postMessage({ type: "burst", options, seq: ++sent });
+    return;
+  }
+
+  if (!canvas) {
+    canvas = createCanvas();
+    ctx = canvas.getContext("2d");
+    onResize();
+  }
+  spawn(particles, options);
   if (!raf) {
     lastFrame = performance.now();
-    raf = requestAnimationFrame(step);
+    raf = requestAnimationFrame(frame);
   }
 }
 
