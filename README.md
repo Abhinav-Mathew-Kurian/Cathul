@@ -14,3 +14,5 @@ Open [http://localhost:3000](http://localhost:3000) to view it.
 Copy `.env.example` to `.env.local` and fill in `MONGODB_URI`/`MONGODB_DB` to enable RSVP storage (falls back to a local file otherwise).
 
 To see RSVPs live in a Google Sheet, follow the setup steps at the top of `scripts/google-sheets-rsvp.gs` and set `GOOGLE_SHEETS_WEBHOOK_URL`/`GOOGLE_SHEETS_WEBHOOK_SECRET`.
+
+Guests can leave wishes in the "Wishes & Blessings" section (public on the wall, or private to the couple). They're stored in the `wishes` collection of the same MongoDB database. With `RSVP_EXPORT_KEY` set, the couple can open `/wishes-admin?key=<that key>` to read every wish (private ones included) and hide or restore public ones.

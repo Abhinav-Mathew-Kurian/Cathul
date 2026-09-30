@@ -1,6 +1,6 @@
-import { MongoClient } from "mongodb";
 import { mkdir, appendFile, readFile } from "fs/promises";
 import path from "path";
+import { getDb } from "./mongo";
 
 export type RsvpEntry = {
   name: string;
@@ -25,25 +25,9 @@ const DATA_DIR = path.join(process.cwd(), ".data");
 const PRIMARY_FILE = path.join(DATA_DIR, "rsvps.jsonl");
 const BACKUP_FILE = path.join(DATA_DIR, "rsvps.backup.jsonl");
 
-let client: MongoClient | null = null;
-
 async function getCollection() {
-  const uri = process.env.MONGODB_URI;
-  if (!uri) {
-    // Serverless hosts (Vercel) have a read-only filesystem, so the local
-    // file fallback can never work there — fail loudly with the real cause
-    // instead of an opaque ENOENT from mkdir.
-    if (process.env.VERCEL) {
-      throw new Error("MONGODB_URI is not set for this Vercel environment — add it in Project Settings → Environment Variables.");
-    }
-    return null;
-  }
-
-  if (!client) {
-    client = new MongoClient(uri);
-    await client.connect();
-  }
-  return client.db(process.env.MONGODB_DB ?? "wedding").collection<RsvpEntry>("rsvps");
+  const db = await getDb();
+  return db ? db.collection<RsvpEntry>("rsvps") : null;
 }
 
 async function appendLocal(entry: RsvpEntry) {

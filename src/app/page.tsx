@@ -8,6 +8,7 @@ import { Rsvp } from "@/components/Rsvp";
 import { Gallery } from "@/components/Gallery";
 import { Music } from "@/components/Music";
 import { Note } from "@/components/Note";
+import { Wishes } from "@/components/Wishes";
 import { Help } from "@/components/Help";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Credit } from "@/components/Credit";
@@ -37,6 +38,7 @@ export default function Home() {
             <Gallery />
             <Music />
             <Note />
+            <Wishes />
             <Help />
             <SiteFooter />
             <Credit />

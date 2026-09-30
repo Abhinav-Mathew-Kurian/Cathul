@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { wedding } from "@/content/wedding";
 import { burst, CONFETTI_COLORS, haptic } from "@/lib/burst";
+import { cleanText, MESSAGE_MAX, NAME_MAX, validateWish } from "@/lib/wish-rules";
 import { HeartIcon } from "./doodles";
 import { JustMarriedCar } from "./JustMarriedCar";
 import { BeatingHeart } from "./BeatingHeart";
@@ -15,7 +16,7 @@ const VIEWPORT = { once: true, margin: "-60px" } as const;
 
 type Attendance = "yes" | "no" | "";
 type Status = "idle" | "submitting" | "done" | "error";
-type FormErrors = Partial<Record<"name" | "phone" | "attendance" | "events", string>>;
+type FormErrors = Partial<Record<"name" | "phone" | "attendance" | "events" | "message", string>>;
 
 const ATTENDANCE_OPTIONS: { value: "yes" | "no"; label: string }[] = [
   { value: "yes", label: "Yes! Can't Wait" },
@@ -95,6 +96,9 @@ export function Rsvp() {
   const [attendance, setAttendance] = useState<Attendance>("");
   const [events, setEvents] = useState<string[]>([]);
   const [message, setMessage] = useState("");
+  // Private by default: an RSVP message only goes on the public wall if the
+  // guest explicitly opts in.
+  const [shareOnWall, setShareOnWall] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [status, setStatus] = useState<Status>("idle");
   const submitRef = useRef<HTMLButtonElement>(null);
@@ -132,6 +136,15 @@ export function Rsvp() {
     e.preventDefault();
 
     const nextErrors = validate({ name, phone, countryCode, attendance, events });
+    const sharing = shareOnWall && message.trim().length > 0;
+    if (sharing) {
+      const wishError = validateWish({
+        name: cleanText(name, NAME_MAX, false),
+        message: cleanText(message, MESSAGE_MAX, true),
+        visibility: "public",
+      }).message;
+      if (wishError) nextErrors.message = wishError;
+    }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
@@ -143,6 +156,7 @@ export function Rsvp() {
       attending: attendance,
       events,
       message: message.trim(),
+      shareOnWall: sharing,
     };
 
     try {
@@ -401,8 +415,38 @@ export function Rsvp() {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="e.g. Best wishes!"
-                  className="mt-1.5 w-full resize-y rounded-xl border border-ink/15 bg-white/85 px-3.5 py-3 font-body text-sm text-ink placeholder:text-ink/35 focus:border-rose focus:outline-none"
+                  aria-invalid={!!errors.message}
+                  aria-describedby={errors.message ? "rsvp-message-error" : undefined}
+                  className={`mt-1.5 w-full resize-y rounded-xl border bg-white/85 px-3.5 py-3 font-body text-sm text-ink placeholder:text-ink/35 focus:border-rose focus:outline-none ${
+                    errors.message ? "border-rose-deep" : "border-ink/15"
+                  }`}
                 />
+                {errors.message && (
+                  <p id="rsvp-message-error" role="alert" className="mt-1 font-body text-xs text-rose-deep">
+                    {errors.message}
+                  </p>
+                )}
+                {message.trim() && (
+                  <div className="mt-2.5">
+                    <label className="flex cursor-pointer items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={shareOnWall}
+                        onChange={(e) => {
+                          setShareOnWall(e.target.checked);
+                          setErrors((prev) => ({ ...prev, message: undefined }));
+                        }}
+                        className="h-4 w-4 accent-rose"
+                      />
+                      <span className="font-body text-sm text-ink">Also share it on the Wishes wall</span>
+                    </label>
+                    <p className="mt-1.5 font-body text-xs leading-relaxed text-ink/55">
+                      {shareOnWall
+                        ? wedding.wishes.publicWarning
+                        : "Only Athul & Cathy will see your message."}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <button

@@ -1,6 +1,8 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { appendRsvpToSheet } from "@/lib/rsvp-sheet";
 import { exportRsvpsAsCsv, saveRsvp, type RsvpEntry } from "@/lib/rsvp-store";
+import { cleanText, MESSAGE_MAX, NAME_MAX, validateWish } from "@/lib/wish-rules";
+import { createWish } from "@/lib/wishes-store";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -42,6 +44,21 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Failed to save RSVP:", error);
     return NextResponse.json({ error: "Could not save your RSVP right now." }, { status: 500 });
+  }
+
+  // The guest opted to also put their message on the public Wishes wall.
+  // Best effort: the RSVP is already saved, so a wall hiccup never fails it.
+  if (body.shareOnWall === true && message) {
+    const wish = {
+      name: cleanText(name, NAME_MAX, false),
+      message: cleanText(message, MESSAGE_MAX, true),
+      visibility: "public" as const,
+    };
+    if (Object.keys(validateWish(wish)).length === 0) {
+      await createWish({ ...wish, source: "rsvp" }).catch((error) =>
+        console.error("Failed to add RSVP message to the wishes wall:", error)
+      );
+    }
   }
 
   // Copy it into the Google Sheet once the guest already has their answer —
