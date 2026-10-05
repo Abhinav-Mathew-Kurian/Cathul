@@ -15,7 +15,14 @@ export type PublicWish = {
 export const NAME_MAX = 60;
 export const MESSAGE_MIN = 2;
 export const MESSAGE_MAX = 400;
-export const PAGE_SIZE = 8;
+/** Lanterns in the wishes sky. */
+export const SKY_SIZE = 12;
+/**
+ * Wishes per page of the wall. The sky fills from what's loaded, so the
+ * first page has to hold a full sky — otherwise the oldest of the newest
+ * wishes stay off it until someone taps "Show more".
+ */
+export const PAGE_SIZE = SKY_SIZE;
 /**
  * How many wishes the couple can pin to the sky. The sky has 12 spots; the
  * rest always go to the newest wishes, so a guest's own lantern still has

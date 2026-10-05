@@ -18,6 +18,7 @@ import {
   cleanText,
   MESSAGE_MAX,
   NAME_MAX,
+  SKY_SIZE,
   validateWish,
   type PublicWish,
   type WishVisibility,
@@ -34,7 +35,6 @@ import { StringLights } from "./StringLights";
 
 const VIEWPORT = { once: true, margin: "-60px" } as const;
 const GOLD = ["#ffcf7a", "#ffe3a3", "#f29a4a", "#fff4c9"];
-const SKY_MAX = 12;
 
 // Where the lanterns hang in the sky: [left %, top %, scale]. The newest wish
 // takes the first, most prominent spot; older ones glide down the list.
@@ -749,7 +749,7 @@ export function Wishes() {
   const pinnedIds = new Set(pinned.map((w) => w.id));
   const skyWishes = merge(
     pinned,
-    wishes.filter((w) => !pinnedIds.has(w.id)).slice(0, Math.max(0, SKY_MAX - pinned.length))
+    wishes.filter((w) => !pinnedIds.has(w.id)).slice(0, Math.max(0, SKY_SIZE - pinned.length))
   );
   const skyIndex = new Map(skyWishes.map((w, i) => [w.id, i]));
   const closeReader = useCallback(() => setReading(null), []);
