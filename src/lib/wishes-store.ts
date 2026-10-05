@@ -67,7 +67,13 @@ function decodeCursor(cursor: string | null): { at: Date; id: string } | null {
 
 let indexesReady: Promise<unknown> | null = null;
 
-async function collections() {
+/**
+ * Reads pass `forWrite: false` and don't wait on the indexes: they already
+ * exist after the first deploy, and waiting cost every cold start an extra
+ * database round trip before the wall could load. Writes still wait — the
+ * unique index is what makes a double send store only one copy.
+ */
+async function collections({ forWrite = true } = {}) {
   const db = await getDb();
   if (!db) return null;
   const wishes = db.collection<WishDoc>("wishes");
@@ -81,7 +87,8 @@ async function collections() {
     indexesReady = null;
     throw error;
   });
-  await indexesReady;
+  if (forWrite) await indexesReady;
+  else indexesReady.catch((error) => console.error("Failed to ensure wish indexes:", error));
   return { wishes, rate };
 }
 
@@ -178,7 +185,7 @@ export type WishPage = { wishes: PublicWish[]; nextCursor: string | null; total?
 /** One page of the public wall, newest first. `total` only comes with the first page. */
 export async function listPublicWishes(cursor: string | null, limit = PAGE_SIZE): Promise<WishPage> {
   const after = decodeCursor(cursor);
-  const c = await collections();
+  const c = await collections({ forWrite: false });
 
   let docs: WishDoc[];
   let total: number | undefined;

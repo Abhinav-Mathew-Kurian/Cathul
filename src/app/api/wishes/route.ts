@@ -4,12 +4,15 @@ import { cleanText, MESSAGE_MAX, NAME_MAX, PAGE_SIZE, validateWish, type WishVis
 import { createWish, listPublicWishes, withinRateLimit, type WishPage } from "@/lib/wishes-store";
 
 // ── GET: one page of the public wall, newest first ─────────────────────────
-// Cached at the CDN for a few seconds (and served stale while it refreshes),
+// Cached at the CDN for a few seconds, and served stale while it refreshes,
 // so a thousand guests opening the invitation cost the database a handful of
-// queries, not a thousand. A guest's own new wish never waits on this cache —
-// the page shows it the moment it's saved.
+// queries, not a thousand. The stale window is a full day so a guest arriving
+// after a quiet spell still gets the wall instantly from the CDN (it refreshes
+// in the background for the next one) rather than waiting on a cold function.
+// A guest's own new wish never waits on this cache — the page shows it the
+// moment it's saved.
 
-const CACHE = "public, max-age=0, s-maxage=10, stale-while-revalidate=60";
+const CACHE = "public, max-age=0, s-maxage=10, stale-while-revalidate=86400";
 
 // A tiny in-process layer on top, for bursts that miss the CDN (or hosts
 // without one): identical requests within 5s share one database query.

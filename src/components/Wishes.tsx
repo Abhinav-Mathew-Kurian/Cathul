@@ -650,7 +650,8 @@ export function Wishes() {
   const [wishes, setWishes] = useState<PublicWish[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [total, setTotal] = useState<number | null>(null);
-  const [state, setState] = useState<LoadState>("idle");
+  // "loading" from the start: the first page is requested on mount.
+  const [state, setState] = useState<LoadState>("loading");
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState(false);
   const [releasingId, setReleasingId] = useState<string | null>(null);
@@ -670,29 +671,31 @@ export function Wishes() {
   // any wishes posted since, slotted in on top. Keyset paging means these
   // never disturb the "show more" cursor, which only ever points at the
   // oldest wish loaded.
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(() => {
     lastRefresh.current = Date.now();
-    setState((s) => (s === "ready" ? s : "loading"));
-    try {
-      const page = await fetchPage(null);
-      setWishes((current) => merge(current, page.wishes));
-      // Only the first load sets the cursor; later refreshes just add newer
-      // wishes on top and leave it pointing at the oldest one.
-      if (!firstPageLoaded.current) {
-        firstPageLoaded.current = true;
-        setCursor(page.nextCursor);
-      }
-      if (page.total !== undefined) setTotal(page.total);
-      setNow(Date.now());
-      setState("ready");
-    } catch {
-      setState((s) => (s === "ready" ? s : "error"));
-    }
+    return fetchPage(null).then(
+      (page) => {
+        setWishes((current) => merge(current, page.wishes));
+        // Only the first load sets the cursor; later refreshes just add newer
+        // wishes on top and leave it pointing at the oldest one.
+        if (!firstPageLoaded.current) {
+          firstPageLoaded.current = true;
+          setCursor(page.nextCursor);
+        }
+        if (page.total !== undefined) setTotal(page.total);
+        setNow(Date.now());
+        setState("ready");
+      },
+      () => setState((s) => (s === "ready" ? s : "error"))
+    );
   }, []);
 
-  // Starts loading well before the section scrolls into view (it's near the
-  // end of a long page), so the sky is full by the time anyone reaches it.
+  // The first page loads straight away — while the guest is still at the
+  // invitation gate — so the sky is already full however they get here,
+  // scrolling or jumping straight to #wishes. After that, coming back near
+  // the wall a minute later picks up anything new.
   useEffect(() => {
+    refresh();
     const el = sectionRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
@@ -768,7 +771,10 @@ export function Wishes() {
               <p className="font-hand text-2xl text-white">The lanterns didn&apos;t load.</p>
               <button
                 type="button"
-                onClick={refresh}
+                onClick={() => {
+                  setState("loading");
+                  refresh();
+                }}
                 className="rounded-full bg-white/85 px-5 py-2 font-body text-xs font-bold text-rose-deep"
               >
                 Try again
