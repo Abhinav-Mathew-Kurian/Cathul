@@ -3,7 +3,7 @@ import { appendFile, mkdir, readFile } from "fs/promises";
 import path from "path";
 import { MongoServerError, type Collection } from "mongodb";
 import { getDb } from "./mongo";
-import { MAX_PINNED, PAGE_SIZE, type PublicWish, type WishVisibility } from "./wish-rules";
+import { MAX_PINNED, PAGE_SIZE, SKY_SIZE, type PublicWish, type WishVisibility } from "./wish-rules";
 
 // Wishes live in their own collection, never alongside RSVPs, so the public
 // wall can't leak a phone number or an attendance answer even by mistake.
@@ -194,11 +194,15 @@ export type WishPage = {
   nextCursor: string | null;
   /** First page only. */
   total?: number;
-  /** First page only: the wishes the couple pinned to the sky, newest first. */
-  pinned?: PublicWish[];
+  /**
+   * First page only: the lanterns for the sky, newest first — the couple's
+   * pinned wishes plus the newest ones. Deliberately one plain list: which
+   * of them are pinned never leaves the server, so no guest can tell.
+   */
+  sky?: PublicWish[];
 };
 
-/** One page of the public wall, newest first. `total` and `pinned` only come with the first page. */
+/** One page of the public wall, newest first. `total` and `sky` only come with the first page. */
 export async function listPublicWishes(cursor: string | null, limit = PAGE_SIZE): Promise<WishPage> {
   const after = decodeCursor(cursor);
   const c = await collections({ forWrite: false });
@@ -231,11 +235,17 @@ export async function listPublicWishes(cursor: string | null, limit = PAGE_SIZE)
 
   const hasMore = docs.length > limit;
   const page = docs.slice(0, limit);
+  let sky: WishDoc[] | undefined;
+  if (pinned) {
+    const pinnedIds = new Set(pinned.map((d) => d._id));
+    const newest = page.filter((d) => !pinnedIds.has(d._id)).slice(0, Math.max(0, SKY_SIZE - pinned.length));
+    sky = [...pinned, ...newest].sort(newestFirst);
+  }
   return {
     wishes: page.map(toPublic),
     nextCursor: hasMore ? encodeCursor(page[page.length - 1]) : null,
     ...(total !== undefined && { total }),
-    ...(pinned && { pinned: pinned.map(toPublic) }),
+    ...(sky && { sky: sky.map(toPublic) }),
   };
 }
 
