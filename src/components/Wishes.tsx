@@ -315,7 +315,7 @@ function Reader({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#2f3a5c]/60 px-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#2f3a5c]/60 px-6 pt-10"
         >
           <motion.div
             key={wish.id}
@@ -326,18 +326,23 @@ function Reader({
             animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }}
             transition={{ type: "spring", stiffness: 240, damping: 22 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-sm rounded-[2rem] bg-cream px-7 pt-16 pb-6 text-center shadow-2xl"
+            // Capped to the screen (less room for the lantern on top) so a long
+            // wish scrolls inside the card instead of pushing the close button
+            // and arrows off a small phone.
+            className="relative flex max-h-[calc(100dvh-7rem)] w-full max-w-sm flex-col rounded-[2rem] bg-cream px-7 pt-16 pb-6 text-center shadow-2xl"
           >
             <span className="absolute -top-9 left-1/2 -translate-x-1/2">
               <Lantern scale={2.1} />
             </span>
-            <p className="whitespace-pre-line font-hand text-[1.6rem] leading-snug text-ink/85 [overflow-wrap:anywhere]">
-              {wish.message}
-            </p>
-            <p className="mt-4 font-script text-4xl leading-none text-rose-deep">{wish.name}</p>
-            <p className="mt-2 font-body text-[11px] text-ink/40">{when(wish.createdAt, now)}</p>
+            <div className="-mx-2 min-h-0 overflow-y-auto overscroll-contain px-2">
+              <p className="whitespace-pre-line font-hand text-[1.6rem] leading-snug text-ink/85 [overflow-wrap:anywhere]">
+                {wish.message}
+              </p>
+              <p className="mt-4 font-script text-4xl leading-none text-rose-deep">{wish.name}</p>
+              <p className="mt-2 font-body text-[11px] text-ink/40">{when(wish.createdAt, now)}</p>
+            </div>
 
-            <div className="mt-5 flex items-center justify-between">
+            <div className="mt-5 flex shrink-0 items-center justify-between">
               <button
                 type="button"
                 onClick={() => onMove(index - 1)}
