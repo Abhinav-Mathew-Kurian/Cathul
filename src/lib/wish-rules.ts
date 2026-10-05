@@ -16,6 +16,12 @@ export const NAME_MAX = 60;
 export const MESSAGE_MIN = 2;
 export const MESSAGE_MAX = 400;
 export const PAGE_SIZE = 8;
+/**
+ * How many wishes the couple can pin to the sky. The sky has 9 spots; the
+ * rest always go to the newest wishes, so a guest's own lantern still has
+ * somewhere to rise to.
+ */
+export const MAX_PINNED = 6;
 
 /** Trims, NFC-normalizes, strips control characters and collapses runs of blank lines. */
 export function cleanText(raw: unknown, max: number, multiline: boolean): string {

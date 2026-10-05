@@ -28,8 +28,9 @@ import { FallingPetals } from "./FallingPetals";
 import { StringLights } from "./StringLights";
 
 // Each wish is released as a lantern into a dusk sky — the same paper
-// lanterns that float over the footer. The newest nine drift in the sky
-// (tap one to read it); every wish is also in the list below, newest first.
+// lanterns that float over the footer. Nine drift in the sky (tap one to
+// read it): any the couple pinned, and the newest wishes in the rest. Every
+// wish is also in the list below, newest first.
 
 const VIEWPORT = { once: true, margin: "-60px" } as const;
 const GOLD = ["#ffcf7a", "#ffe3a3", "#f29a4a", "#fff4c9"];
@@ -59,7 +60,7 @@ const STARS = [
   [56, 17, 1.4],
 ];
 
-type Page = { wishes: PublicWish[]; nextCursor: string | null; total?: number };
+type Page = { wishes: PublicWish[]; nextCursor: string | null; total?: number; pinned?: PublicWish[] };
 
 async function fetchPage(cursor: string | null): Promise<Page> {
   const res = await fetch(cursor ? `/api/wishes?cursor=${encodeURIComponent(cursor)}` : "/api/wishes");
@@ -650,6 +651,7 @@ export function Wishes() {
   const [wishes, setWishes] = useState<PublicWish[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [total, setTotal] = useState<number | null>(null);
+  const [pinned, setPinned] = useState<PublicWish[]>([]);
   // "loading" from the start: the first page is requested on mount.
   const [state, setState] = useState<LoadState>("loading");
   const [loadingMore, setLoadingMore] = useState(false);
@@ -683,6 +685,7 @@ export function Wishes() {
           setCursor(page.nextCursor);
         }
         if (page.total !== undefined) setTotal(page.total);
+        if (page.pinned) setPinned(page.pinned);
         setNow(Date.now());
         setState("ready");
       },
@@ -735,7 +738,15 @@ export function Wishes() {
     skyRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
   }
 
-  const skyWishes = wishes.slice(0, SKY_MAX);
+  // Pinned wishes keep their place in the sky whatever their age; the newest
+  // wishes fill the rest. Still ordered newest first, so the newest lantern
+  // keeps the most prominent spot.
+  const pinnedIds = new Set(pinned.map((w) => w.id));
+  const skyWishes = merge(
+    pinned,
+    wishes.filter((w) => !pinnedIds.has(w.id)).slice(0, Math.max(0, SKY_MAX - pinned.length))
+  );
+  const skyIndex = new Map(skyWishes.map((w, i) => [w.id, i]));
   const closeReader = useCallback(() => setReading(null), []);
   const remaining = total !== null ? Math.max(0, total - wishes.length) : null;
 
@@ -797,15 +808,18 @@ export function Wishes() {
               <HeartIcon className="h-4 w-4 text-dusk" />
             </p>
             <ul aria-label="Wishes from friends and family" className="mt-6 space-y-4">
-              {wishes.map((wish, i) => (
-                <WishRow
-                  key={wish.id}
-                  wish={wish}
-                  now={now}
-                  order={i % 8}
-                  onOpen={i < SKY_MAX ? () => setReading(i) : undefined}
-                />
-              ))}
+              {wishes.map((wish, i) => {
+                const inSky = skyIndex.get(wish.id);
+                return (
+                  <WishRow
+                    key={wish.id}
+                    wish={wish}
+                    now={now}
+                    order={i % 8}
+                    onOpen={inSky !== undefined ? () => setReading(inSky) : undefined}
+                  />
+                );
+              })}
             </ul>
           </>
         )}

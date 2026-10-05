@@ -3,7 +3,7 @@ import { appendFile, mkdir, readFile } from "fs/promises";
 import path from "path";
 import { MongoServerError, type Collection } from "mongodb";
 import { getDb } from "./mongo";
-import { PAGE_SIZE, type PublicWish, type WishVisibility } from "./wish-rules";
+import { MAX_PINNED, PAGE_SIZE, type PublicWish, type WishVisibility } from "./wish-rules";
 
 // Wishes live in their own collection, never alongside RSVPs, so the public
 // wall can't leak a phone number or an attendance answer even by mistake.
@@ -28,20 +28,22 @@ type WishDoc = {
   message: string;
   visibility: WishVisibility;
   hidden: boolean;
+  /** Kept in the sky whatever its age. Absent on wishes from before pinning. */
+  pinned?: boolean;
   source: WishSource;
   createdAt: Date;
   contentKey: string;
 };
 
 /** Everything the couple sees on the admin page. */
-export type AdminWish = PublicWish & { visibility: WishVisibility; hidden: boolean; source: WishSource };
+export type AdminWish = PublicWish & { visibility: WishVisibility; hidden: boolean; pinned: boolean; source: WishSource };
 
 function toPublic(doc: WishDoc): PublicWish {
   return { id: doc._id, name: doc.name, message: doc.message, createdAt: doc.createdAt.toISOString() };
 }
 
 function toAdmin(doc: WishDoc): AdminWish {
-  return { ...toPublic(doc), visibility: doc.visibility, hidden: doc.hidden, source: doc.source };
+  return { ...toPublic(doc), visibility: doc.visibility, hidden: doc.hidden, pinned: !!doc.pinned, source: doc.source };
 }
 
 function contentKeyFor(name: string, message: string, visibility: WishVisibility) {
@@ -110,13 +112,17 @@ async function insertOnce(wishes: Collection<WishDoc>, doc: WishDoc): Promise<Wi
 // ── Local fallback (dev without MONGODB_URI) ───────────────────────────────
 // Same JSON Lines approach as RSVPs: one atomic append per wish. A single
 // dev server is one process, so a promise chain serializes the
-// check-then-append for duplicates, and hide/unhide are appended events.
+// check-then-append for duplicates, and hide/unhide and pin/unpin are
+// appended events.
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const LOCAL_FILE = path.join(DATA_DIR, "wishes.jsonl");
 let localQueue: Promise<unknown> = Promise.resolve();
 
-type LocalLine = (Omit<WishDoc, "createdAt"> & { createdAt: string }) | { _id: string; hiddenUpdate: boolean };
+type LocalLine =
+  | (Omit<WishDoc, "createdAt"> & { createdAt: string })
+  | { _id: string; hiddenUpdate: boolean }
+  | { _id: string; pinnedUpdate: boolean };
 
 async function readLocal(): Promise<WishDoc[]> {
   let raw = "";
@@ -132,6 +138,9 @@ async function readLocal(): Promise<WishDoc[]> {
     if ("hiddenUpdate" in entry) {
       const doc = byId.get(entry._id);
       if (doc) doc.hidden = entry.hiddenUpdate;
+    } else if ("pinnedUpdate" in entry) {
+      const doc = byId.get(entry._id);
+      if (doc) doc.pinned = entry.pinnedUpdate;
     } else {
       byId.set(entry._id, { ...entry, createdAt: new Date(entry.createdAt) });
     }
@@ -180,28 +189,40 @@ export async function createWish(input: {
   });
 }
 
-export type WishPage = { wishes: PublicWish[]; nextCursor: string | null; total?: number };
+export type WishPage = {
+  wishes: PublicWish[];
+  nextCursor: string | null;
+  /** First page only. */
+  total?: number;
+  /** First page only: the wishes the couple pinned to the sky, newest first. */
+  pinned?: PublicWish[];
+};
 
-/** One page of the public wall, newest first. `total` only comes with the first page. */
+/** One page of the public wall, newest first. `total` and `pinned` only come with the first page. */
 export async function listPublicWishes(cursor: string | null, limit = PAGE_SIZE): Promise<WishPage> {
   const after = decodeCursor(cursor);
   const c = await collections({ forWrite: false });
 
   let docs: WishDoc[];
   let total: number | undefined;
+  let pinned: WishDoc[] | undefined;
   if (c) {
     const visible = { visibility: "public" as const, hidden: false };
     const query = after
       ? { ...visible, $or: [{ createdAt: { $lt: after.at } }, { createdAt: after.at, _id: { $lt: after.id } }] }
       : visible;
     // One extra tells us whether another page exists, without a second query.
-    [docs, total] = await Promise.all([
+    [docs, total, pinned] = await Promise.all([
       c.wishes.find(query).sort({ createdAt: -1, _id: -1 }).limit(limit + 1).toArray(),
       after ? Promise.resolve(undefined) : c.wishes.countDocuments(visible),
+      after
+        ? Promise.resolve(undefined)
+        : c.wishes.find({ ...visible, pinned: true }).sort({ createdAt: -1, _id: -1 }).limit(MAX_PINNED).toArray(),
     ]);
   } else {
     const all = (await readLocal()).filter((w) => w.visibility === "public" && !w.hidden).sort(newestFirst);
     total = after ? undefined : all.length;
+    pinned = after ? undefined : all.filter((w) => w.pinned).slice(0, MAX_PINNED);
     const start = after
       ? all.findIndex((w) => w.createdAt < after.at || (w.createdAt.getTime() === after.at.getTime() && w._id < after.id))
       : 0;
@@ -214,6 +235,7 @@ export async function listPublicWishes(cursor: string | null, limit = PAGE_SIZE)
     wishes: page.map(toPublic),
     nextCursor: hasMore ? encodeCursor(page[page.length - 1]) : null,
     ...(total !== undefined && { total }),
+    ...(pinned && { pinned: pinned.map(toPublic) }),
   };
 }
 
@@ -253,12 +275,48 @@ export async function listAllWishes(): Promise<AdminWish[]> {
   return (await readLocal()).sort(newestFirst).map(toAdmin);
 }
 
+/** Hiding a wish also unpins it, so a hidden wish never holds one of the pins. */
 export async function setWishHidden(id: string, hidden: boolean): Promise<boolean> {
   const c = await collections();
-  if (c) return (await c.wishes.updateOne({ _id: id }, { $set: { hidden } })).matchedCount === 1;
+  const set = hidden ? { hidden, pinned: false } : { hidden };
+  if (c) return (await c.wishes.updateOne({ _id: id }, { $set: set })).matchedCount === 1;
   return serialized(async () => {
     if (!(await readLocal()).some((w) => w._id === id)) return false;
-    await appendFile(LOCAL_FILE, JSON.stringify({ _id: id, hiddenUpdate: hidden }) + "\n", "utf-8");
+    let lines = JSON.stringify({ _id: id, hiddenUpdate: hidden }) + "\n";
+    if (hidden) lines += JSON.stringify({ _id: id, pinnedUpdate: false }) + "\n";
+    await appendFile(LOCAL_FILE, lines, "utf-8");
     return true;
+  });
+}
+
+export type PinResult = "ok" | "not-found" | "not-public" | "full";
+
+/**
+ * Pins a public, shown wish to the sky (or unpins it). At most MAX_PINNED at
+ * once; pinning one more answers "full" and changes nothing.
+ */
+export async function setWishPinned(id: string, pinned: boolean): Promise<PinResult> {
+  const c = await collections();
+  if (c) {
+    const wish = await c.wishes.findOne({ _id: id });
+    if (!wish) return "not-found";
+    if (pinned && (wish.visibility !== "public" || wish.hidden)) return "not-public";
+    if (pinned && !wish.pinned) {
+      const count = await c.wishes.countDocuments({ visibility: "public", hidden: false, pinned: true });
+      if (count >= MAX_PINNED) return "full";
+    }
+    await c.wishes.updateOne({ _id: id }, { $set: { pinned } });
+    return "ok";
+  }
+  return serialized(async () => {
+    const all = await readLocal();
+    const wish = all.find((w) => w._id === id);
+    if (!wish) return "not-found";
+    if (pinned && (wish.visibility !== "public" || wish.hidden)) return "not-public";
+    if (pinned && !wish.pinned && all.filter((w) => w.pinned && w.visibility === "public" && !w.hidden).length >= MAX_PINNED) {
+      return "full";
+    }
+    await appendFile(LOCAL_FILE, JSON.stringify({ _id: id, pinnedUpdate: pinned }) + "\n", "utf-8");
+    return "ok";
   });
 }
