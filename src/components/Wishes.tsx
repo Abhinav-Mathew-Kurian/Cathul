@@ -38,9 +38,26 @@ const GOLD = ["#ffcf7a", "#ffe3a3", "#f29a4a", "#fff4c9"];
 
 // Where the lanterns hang in the sky: [left %, top %, scale]. The newest wish
 // takes the first, most prominent spot; older ones glide down the list.
+// Two layouts, so a sky that isn't full still looks balanced: up to nine
+// lanterns spread over the whole sky; past nine they all glide into the
+// twelve-spot layout.
+type Spot = [number, number, number];
+
+const SKY_SLOTS_NINE: Spot[] = [
+  [50, 30, 1.75],
+  [19, 22, 1.2],
+  [81, 20, 1.3],
+  [31, 52, 1.35],
+  [70, 50, 1.45],
+  [13, 72, 1.05],
+  [88, 70, 1.1],
+  [50, 76, 1.15],
+  [30, 88, 0.9],
+];
+
 // Staggered rows (3, 2, 3, 2, 2) so neighbouring lanterns and their names
 // stay clear of each other even on a narrow phone.
-const SKY_SLOTS: [number, number, number][] = [
+const SKY_SLOTS_TWELVE: Spot[] = [
   [50, 27, 1.6],
   [18, 22, 1.15],
   [82, 21, 1.2],
@@ -129,17 +146,17 @@ function Lantern({ scale = 1, className = "" }: { scale?: number; className?: st
 
 function SkyLantern({
   wish,
-  slot,
+  spot,
   releasing,
   onOpen,
 }: {
   wish: PublicWish;
-  slot: number;
+  spot: Spot;
   releasing: boolean;
   onOpen: () => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
-  const [left, top, scale] = SKY_SLOTS[slot];
+  const [left, top, scale] = spot;
   const h = hash(wish.id);
 
   // The guest's own wish rises from the horizon to its spot, then flares.
@@ -218,6 +235,7 @@ function Sky({
   onOpen: (index: number) => void;
   skyRef: RefObject<HTMLDivElement | null>;
 }) {
+  const layout = wishes.length > SKY_SLOTS_NINE.length ? SKY_SLOTS_TWELVE : SKY_SLOTS_NINE;
   return (
     <div ref={skyRef} className="wish-sky">
       {STARS.map(([x, y, delay], i) => (
@@ -232,7 +250,7 @@ function Sky({
         <SkyLantern
           key={wish.id}
           wish={wish}
-          slot={i}
+          spot={layout[i]}
           releasing={wish.id === releasingId}
           onOpen={() => onOpen(i)}
         />
