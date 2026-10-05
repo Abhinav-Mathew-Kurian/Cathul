@@ -290,6 +290,22 @@ function Reader({
   const isClient = useSyncExternalStore(subscribeNothing, () => true, () => false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const wish = index === null ? null : wishes[index];
+  // True while a long wish has more text below the fold — the bottom edge
+  // fades out as a hint to scroll.
+  const [more, setMore] = useState(false);
+  const watchScroll = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    const check = () => setMore(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+    const resize = new ResizeObserver(check);
+    // The box stops growing once capped, so watch the text inside too (it
+    // reflows when the handwriting font arrives).
+    for (const child of [el, ...el.children]) resize.observe(child);
+    el.addEventListener("scroll", check, { passive: true });
+    return () => {
+      resize.disconnect();
+      el.removeEventListener("scroll", check);
+    };
+  }, []);
 
   useEffect(() => {
     if (index === null) return;
@@ -334,7 +350,12 @@ function Reader({
             <span className="absolute -top-9 left-1/2 -translate-x-1/2">
               <Lantern scale={2.1} />
             </span>
-            <div className="-mx-2 min-h-0 overflow-y-auto overscroll-contain px-2">
+            <div
+              ref={watchScroll}
+              className={`-mx-2 min-h-0 overflow-y-auto overscroll-contain px-2 ${
+                more ? "[mask-image:linear-gradient(to_bottom,black_calc(100%-3rem),transparent)]" : ""
+              }`}
+            >
               <p className="whitespace-pre-line font-hand text-[1.6rem] leading-snug text-ink/85 [overflow-wrap:anywhere]">
                 {wish.message}
               </p>
