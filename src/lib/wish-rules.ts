@@ -17,7 +17,7 @@ export const MESSAGE_MIN = 2;
 export const MESSAGE_MAX = 400;
 export const PAGE_SIZE = 8;
 /**
- * How many wishes the couple can pin to the sky. The sky has 9 spots; the
+ * How many wishes the couple can pin to the sky. The sky has 12 spots; the
  * rest always go to the newest wishes, so a guest's own lantern still has
  * somewhere to rise to.
  */

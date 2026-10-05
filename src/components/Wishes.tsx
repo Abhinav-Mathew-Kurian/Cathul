@@ -28,26 +28,31 @@ import { FallingPetals } from "./FallingPetals";
 import { StringLights } from "./StringLights";
 
 // Each wish is released as a lantern into a dusk sky — the same paper
-// lanterns that float over the footer. Nine drift in the sky (tap one to
+// lanterns that float over the footer. Twelve drift in the sky (tap one to
 // read it): any the couple pinned, and the newest wishes in the rest. Every
 // wish is also in the list below, newest first.
 
 const VIEWPORT = { once: true, margin: "-60px" } as const;
 const GOLD = ["#ffcf7a", "#ffe3a3", "#f29a4a", "#fff4c9"];
-const SKY_MAX = 9;
+const SKY_MAX = 12;
 
 // Where the lanterns hang in the sky: [left %, top %, scale]. The newest wish
 // takes the first, most prominent spot; older ones glide down the list.
+// Staggered rows (3, 2, 3, 2, 2) so neighbouring lanterns and their names
+// stay clear of each other even on a narrow phone.
 const SKY_SLOTS: [number, number, number][] = [
-  [50, 30, 1.75],
-  [19, 22, 1.2],
-  [81, 20, 1.3],
-  [31, 52, 1.35],
-  [70, 50, 1.45],
-  [13, 72, 1.05],
-  [88, 70, 1.1],
-  [50, 76, 1.15],
-  [30, 88, 0.9],
+  [50, 27, 1.6],
+  [18, 22, 1.15],
+  [82, 21, 1.2],
+  [30, 46, 1.25],
+  [70, 45, 1.3],
+  [50, 63, 1.1],
+  [13, 62, 1],
+  [87, 60, 1.05],
+  [31, 77, 1],
+  [69, 76, 0.95],
+  [15, 87, 0.85],
+  [85, 88, 0.85],
 ];
 
 const STARS = [
