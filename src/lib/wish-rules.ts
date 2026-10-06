@@ -14,7 +14,7 @@ export type PublicWish = {
 
 export const NAME_MAX = 60;
 export const MESSAGE_MIN = 2;
-export const MESSAGE_MAX = 400;
+export const MESSAGE_MAX = 600;
 /** Lanterns in the wishes sky. */
 export const SKY_SIZE = 12;
 /**
