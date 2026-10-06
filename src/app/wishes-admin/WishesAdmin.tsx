@@ -64,7 +64,15 @@ export function WishesAdmin({ adminKey }: { adminKey: string }) {
 
   return (
     <main className="mx-auto min-h-screen max-w-2xl px-5 py-10">
-      <h1 className="font-hand text-4xl text-ink">Wishes &amp; Blessings</h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h1 className="font-hand text-4xl text-ink">Wishes &amp; Blessings</h1>
+        <a
+          href={`/analytics-admin?key=${encodeURIComponent(adminKey)}`}
+          className="font-body text-xs font-semibold text-rose-deep underline underline-offset-2"
+        >
+          Visitors →
+        </a>
+      </div>
       <p className="mt-1 font-body text-sm text-ink/60">
         Every wish, including private ones. Hiding a public wish takes it off the wall within about 10 seconds.
         Pinning one keeps its lantern in the sky for good, however many new wishes arrive — up to {MAX_PINNED}{" "}

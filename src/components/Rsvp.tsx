@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { wedding } from "@/content/wedding";
 import { burst, CONFETTI_COLORS, haptic } from "@/lib/burst";
+import { track } from "@/lib/track";
 import { HeartIcon } from "./doodles";
 import { JustMarriedCar } from "./JustMarriedCar";
 import { BeatingHeart } from "./BeatingHeart";
@@ -173,6 +174,7 @@ export function Rsvp() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("failed");
+      track("rsvp");
       const origin = submitRef.current?.getBoundingClientRect();
       if (attendance === "yes") celebrate(origin);
       else sendLove(origin);

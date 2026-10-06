@@ -5,6 +5,7 @@ import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import Image from "next/image";
 import { wedding } from "@/content/wedding";
 import { burst, haptic } from "@/lib/burst";
+import { track } from "@/lib/track";
 import { HeartIcon, LeafSprig } from "./doodles";
 import { useMusic } from "./MusicProvider";
 
@@ -289,6 +290,7 @@ export function InvitationGate({ children }: { children: ReactNode }) {
   function handleOpen() {
     if (openedRef.current) return;
     openedRef.current = true;
+    track("open");
     // Called synchronously from this click — the one gesture every browser
     // reliably honors for starting audio, so the music begins the instant
     // the invitation opens instead of waiting for a separate Play tap.

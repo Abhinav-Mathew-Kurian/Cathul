@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { wedding } from "@/content/wedding";
 import { burst, haptic, prefersReducedMotion } from "@/lib/burst";
+import { track } from "@/lib/track";
 import {
   cleanText,
   MESSAGE_MAX,
@@ -511,6 +512,7 @@ function WishForm({ onPosted }: { onPosted: (wish: PublicWish) => void }) {
       }
       if (data.wish) onPosted(data.wish);
       else setPrivateLanterns((l) => [...l, Date.now()]);
+      track("wish");
       haptic([10, 30, 16]);
       setSentAs(visibility);
       setMessage("");

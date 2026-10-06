@@ -12,6 +12,7 @@ import { Wishes } from "@/components/Wishes";
 import { Help } from "@/components/Help";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Credit } from "@/components/Credit";
+import { VisitTracker } from "@/components/VisitTracker";
 
 export default function Home() {
   return (
@@ -46,6 +47,7 @@ export default function Home() {
         </div>
       </InvitationGate>
       <MusicWidget />
+      <VisitTracker />
     </MusicProvider>
   );
 }
