@@ -31,10 +31,14 @@ import { StringLights } from "./StringLights";
 
 // Each wish is released as a lantern into a dusk sky — the same paper
 // lanterns that float over the footer. Twelve drift in the sky (tap one to
-// read it) — the server picks which; every wish is also in the list below,
-// newest first.
+// read it) — the server picks which. Below the form, the newest few wishes
+// show as a preview; "Read all" opens every wish, newest first, in a
+// full-screen view of its own — so the page stays the same length whether
+// there are ten wishes or five hundred.
 
 const VIEWPORT = { once: true, margin: "-60px" } as const;
+/** Wishes shown on the page itself, under the form. */
+const PREVIEW = 3;
 const GOLD = ["#ffcf7a", "#ffe3a3", "#f29a4a", "#fff4c9"];
 
 // Where the lanterns hang in the sky: [left %, top %, scale]. The newest wish
@@ -406,9 +410,36 @@ function Reader({
 
 // ── The list ────────────────────────────────────────────────────────────────
 
-function WishRow({ wish, now, order, onOpen }: { wish: PublicWish; now: number; order: number; onOpen?: () => void }) {
+function WishRow({
+  wish,
+  now,
+  order,
+  onOpen,
+  onRead,
+}: {
+  wish: PublicWish;
+  now: number;
+  order: number;
+  /** Opens this wish's lantern in the sky, when it's one of them. */
+  onOpen?: () => void;
+  /** Set on the page's preview: the wish is cut to four lines and tapping it opens it in full. */
+  onRead?: () => void;
+}) {
+  const text = (
+    <p
+      className={`whitespace-pre-line font-hand text-[1.3rem] leading-snug text-ink/85 [overflow-wrap:anywhere] ${
+        onRead ? "line-clamp-4" : ""
+      }`}
+    >
+      {wish.message}
+    </p>
+  );
   return (
-    <li className="wish-in" style={{ animationDelay: `${Math.min(order, 7) * 60}ms` }}>
+    <li
+      data-wish={wish.id}
+      className="wish-in"
+      style={{ animationDelay: `${Math.min(order, 7) * 60}ms` }}
+    >
       <div className="flex gap-3 rounded-3xl border border-ink/10 bg-white/70 p-4 shadow-[var(--card-shadow)]">
         <button
           type="button"
@@ -421,9 +452,13 @@ function WishRow({ wish, now, order, onOpen }: { wish: PublicWish; now: number; 
           <Lantern scale={0.85} />
         </button>
         <div className="min-w-0 flex-1">
-          <p className="whitespace-pre-line font-hand text-[1.3rem] leading-snug text-ink/85 [overflow-wrap:anywhere]">
-            {wish.message}
-          </p>
+          {onRead ? (
+            <button type="button" onClick={onRead} className="block w-full text-left">
+              {text}
+            </button>
+          ) : (
+            text
+          )}
           <div className="mt-1.5 flex items-end justify-between gap-3">
             <span className="min-w-0 truncate font-script text-[1.7rem] leading-none text-rose-deep">{wish.name}</span>
             <time dateTime={wish.createdAt} className="flex-shrink-0 font-body text-[11px] text-ink/40">
@@ -433,6 +468,189 @@ function WishRow({ wish, now, order, onOpen }: { wish: PublicWish; now: number; 
         </div>
       </div>
     </li>
+  );
+}
+
+// ── Every wish ──────────────────────────────────────────────────────────────
+// A full-screen view with its own scroll, so reading a hundred wishes never
+// stretches the page (or pushes the gallery out of reach). Older wishes load
+// as the guest nears the bottom. The phone's back button closes it, like any
+// screen in an app.
+
+const BOOK_SKY = "linear-gradient(180deg, #5c7699 0%, #8ca4c4 38%, #c9b3cf 68%, var(--sky-bottom) 100%)";
+
+function AllWishes({
+  open,
+  wishes,
+  total,
+  focusId,
+  now,
+  hasMore,
+  loadingMore,
+  moreError,
+  readerOpen,
+  skyIndex,
+  onLoadMore,
+  onOpenLantern,
+  onClose,
+}: {
+  open: boolean;
+  wishes: PublicWish[];
+  total: number;
+  /** The wish to start at, when it was opened from the preview. */
+  focusId: string | null;
+  now: number;
+  hasMore: boolean;
+  loadingMore: boolean;
+  moreError: boolean;
+  /** The lantern reader is on top — Escape is its to handle. */
+  readerOpen: boolean;
+  skyIndex: Map<string, number>;
+  onLoadMore: () => void;
+  onOpenLantern: (index: number) => void;
+  onClose: () => void;
+}) {
+  const isClient = useSyncExternalStore(subscribeNothing, () => true, () => false);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  const [sentinel, setSentinel] = useState<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    // The page underneath stays put while this one scrolls.
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus({ preventScroll: true });
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || readerOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, readerOpen, onClose]);
+
+  // Opened from the preview: start at that wish.
+  useEffect(() => {
+    if (!scroller || !focusId) return;
+    const row = scroller.querySelector<HTMLElement>(`[data-wish="${CSS.escape(focusId)}"]`);
+    if (row) scroller.scrollTo({ top: row.offsetTop - 16 });
+  }, [scroller, focusId]);
+
+  // Older wishes load before the guest reaches the end.
+  useEffect(() => {
+    if (!scroller || !sentinel || !hasMore || loadingMore || moreError) return;
+    const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && onLoadMore(), {
+      root: scroller,
+      rootMargin: "0px 0px 800px 0px",
+    });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [scroller, sentinel, hasMore, loadingMore, moreError, onLoadMore]);
+
+  if (!isClient) return null;
+  // Portalled, like the reader: a section's content-visibility would trap a
+  // fixed overlay inside it.
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          key="all-wishes"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25 }}
+          onClick={onClose}
+          className="fixed inset-0 z-40 flex justify-center bg-[#2f3a5c]/55"
+        >
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={wedding.wishes.heading}
+            initial={{ transform: "translateY(100%)" }}
+            animate={{ transform: "translateY(0%)" }}
+            exit={{ transform: "translateY(100%)" }}
+            transition={{ type: "spring", stiffness: 260, damping: 32 }}
+            onClick={(e) => e.stopPropagation()}
+            className="flex h-[100dvh] w-full max-w-[440px] flex-col overflow-hidden bg-[var(--sky-bottom)] shadow-2xl"
+          >
+            <header
+              className="relative shrink-0 overflow-hidden px-6 pt-[max(1.25rem,env(safe-area-inset-top))] pb-10 text-center"
+              style={{ background: BOOK_SKY }}
+            >
+              {STARS.slice(0, 5).map(([x, y, delay], i) => (
+                <span
+                  key={i}
+                  aria-hidden
+                  className="sky-star"
+                  style={{ left: `${x}%`, top: `${y * 2.5}%`, animationDelay: `${delay}s` }}
+                />
+              ))}
+              <span
+                aria-hidden
+                className="sky-bob absolute top-6 left-7 opacity-80"
+                style={{ animationDuration: "6s" }}
+              >
+                <Lantern scale={0.9} />
+              </span>
+              <button
+                ref={closeRef}
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/20 text-2xl leading-none text-white backdrop-blur-sm transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                ×
+              </button>
+              <h2 className="mt-6 font-hand text-4xl text-white drop-shadow-sm">{wedding.wishes.heading}</h2>
+              <p className="mt-1 font-body text-xs font-semibold tracking-wide text-white/85">
+                {total} {total === 1 ? "wish" : "wishes"} and counting
+              </p>
+            </header>
+
+            <div
+              ref={setScroller}
+              className="relative -mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-2 pb-[max(2rem,env(safe-area-inset-bottom))]"
+            >
+              <ul aria-label="Wishes from friends and family" className="space-y-4">
+                {wishes.map((wish, i) => {
+                  const inSky = skyIndex.get(wish.id);
+                  return (
+                    <WishRow
+                      key={wish.id}
+                      wish={wish}
+                      now={now}
+                      order={i % 8}
+                      onOpen={inSky !== undefined ? () => onOpenLantern(inSky) : undefined}
+                    />
+                  );
+                })}
+              </ul>
+
+              <div ref={setSentinel} className="flex min-h-24 items-center justify-center pt-6 text-center">
+                {moreError ? (
+                  <button
+                    type="button"
+                    onClick={onLoadMore}
+                    className="rounded-full border-2 border-rose/30 bg-white/70 px-6 py-3 font-body text-sm font-bold text-rose-deep"
+                  >
+                    More wishes didn&apos;t load. Tap to try again.
+                  </button>
+                ) : hasMore ? (
+                  <Lantern scale={1.1} className="animate-pulse opacity-70" />
+                ) : (
+                  <p className="font-hand text-xl text-ink/55">{wedding.wishes.end}</p>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 }
 
@@ -712,6 +930,9 @@ export function Wishes() {
   const [moreError, setMoreError] = useState(false);
   const [releasingId, setReleasingId] = useState<string | null>(null);
   const [reading, setReading] = useState<number | null>(null);
+  // The full-screen list of every wish: null while closed.
+  const [book, setBook] = useState<{ focusId: string | null } | null>(null);
+  const bookInHistory = useRef(false);
   const [now, setNow] = useState(() => Date.now());
   const sectionRef = useRef<HTMLElement>(null);
   const skyRef = useRef<HTMLDivElement>(null);
@@ -765,7 +986,7 @@ export function Wishes() {
     return () => observer.disconnect();
   }, [refresh]);
 
-  async function loadMore() {
+  const loadMore = useCallback(async () => {
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
     setMoreError(false);
@@ -779,7 +1000,31 @@ export function Wishes() {
     } finally {
       setLoadingMore(false);
     }
+  }, [cursor, loadingMore]);
+
+  // The full-screen list gets its own history entry, so the phone's back
+  // button closes it instead of leaving the invitation.
+  function openBook(focusId: string | null) {
+    setBook({ focusId });
+    if (!bookInHistory.current) {
+      bookInHistory.current = true;
+      window.history.pushState(window.history.state, "");
+    }
   }
+  const closeBook = useCallback(() => {
+    if (bookInHistory.current) window.history.back();
+    else setBook(null);
+  }, []);
+  useEffect(() => {
+    const onPop = () => {
+      if (!bookInHistory.current) return;
+      bookInHistory.current = false;
+      setBook(null);
+      setReading(null);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   function handlePosted(wish: PublicWish) {
     // A duplicate send comes back as the original wish — already counted.
@@ -798,7 +1043,9 @@ export function Wishes() {
   const skyWishes = merge(serverSky, released).slice(0, SKY_SIZE);
   const skyIndex = new Map(skyWishes.map((w, i) => [w.id, i]));
   const closeReader = useCallback(() => setReading(null), []);
-  const remaining = total !== null ? Math.max(0, total - wishes.length) : null;
+  const count = total ?? wishes.length;
+  // Short enough to show in full on the page: no preview cut, no button.
+  const fitsOnPage = count <= PREVIEW && !cursor;
 
   return (
     <section ref={sectionRef} id="wishes" className="wishes-bg relative overflow-hidden px-5 pt-16 pb-16">
@@ -854,48 +1101,59 @@ export function Wishes() {
           <>
             <p className="mt-12 flex items-center justify-center gap-2 font-hand text-2xl text-ink/70">
               <HeartIcon className="h-4 w-4 text-rose" />
-              {total ?? wishes.length} {(total ?? wishes.length) === 1 ? "wish" : "wishes"} and counting
+              {count} {count === 1 ? "wish" : "wishes"} and counting
               <HeartIcon className="h-4 w-4 text-dusk" />
             </p>
-            <ul aria-label="Wishes from friends and family" className="mt-6 space-y-4">
-              {wishes.map((wish, i) => {
+            <ul aria-label="The newest wishes" className="mt-6 space-y-4">
+              {wishes.slice(0, PREVIEW).map((wish, i) => {
                 const inSky = skyIndex.get(wish.id);
                 return (
                   <WishRow
                     key={wish.id}
                     wish={wish}
                     now={now}
-                    order={i % 8}
+                    order={i}
                     onOpen={inSky !== undefined ? () => setReading(inSky) : undefined}
+                    onRead={fitsOnPage ? undefined : () => openBook(wish.id)}
                   />
                 );
               })}
             </ul>
-          </>
-        )}
-
-        {cursor && wishes.length > 0 && (
-          <div className="mt-8 text-center">
-            <button
-              type="button"
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="rounded-full border-2 border-rose/30 bg-white/70 px-6 py-3 font-body text-sm font-bold text-rose-deep shadow-sm transition hover:bg-white active:scale-[0.98] disabled:opacity-60"
-            >
-              {loadingMore ? "Loading..." : `Show more wishes${remaining ? ` (${remaining} more)` : ""}`}
-            </button>
-            {moreError && (
-              <p role="alert" className="mt-2 font-body text-xs text-rose-deep">
-                More wishes didn&apos;t load. Tap to try again.
-              </p>
+            {fitsOnPage ? (
+              state === "ready" && (
+                <p className="mt-8 text-center font-hand text-xl text-ink/55">{wedding.wishes.end}</p>
+              )
+            ) : (
+              <div className="mt-8 text-center">
+                <button
+                  type="button"
+                  onClick={() => openBook(null)}
+                  className="inline-flex items-center gap-2 rounded-full bg-rose px-6 py-3.5 font-body text-sm font-bold text-white shadow-[var(--card-shadow)] transition hover:bg-rose-deep active:scale-[0.98]"
+                >
+                  Read all {count} wishes
+                  <HeartIcon className="h-4 w-4" />
+                </button>
+              </div>
             )}
-          </div>
-        )}
-        {!cursor && state === "ready" && wishes.length > 0 && (
-          <p className="mt-8 text-center font-hand text-xl text-ink/55">{wedding.wishes.end}</p>
+          </>
         )}
       </div>
 
+      <AllWishes
+        open={book !== null}
+        wishes={wishes}
+        total={count}
+        focusId={book?.focusId ?? null}
+        now={now}
+        hasMore={cursor !== null}
+        loadingMore={loadingMore}
+        moreError={moreError}
+        readerOpen={reading !== null}
+        skyIndex={skyIndex}
+        onLoadMore={loadMore}
+        onOpenLantern={setReading}
+        onClose={closeBook}
+      />
       <Reader wishes={skyWishes} index={reading} now={now} onClose={closeReader} onMove={setReading} />
     </section>
   );
