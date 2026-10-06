@@ -295,7 +295,7 @@ export const wedding = {
     sentPrivate: "Sent privately to Athul & Cathy 💌",
     // Under the RSVP button — a reminder, not a link, so nobody leaves the
     // form before submitting it.
-    rsvpReminder: "💌 Don't forget to leave a wish for Athul & Cathy. There's a wishes wall right after their note, further down.",
+    rsvpReminder: "💌 Don't forget to leave a wish for Athul & Cathy. There's a wishes wall right after their note, just below.",
     // The RSVP thank-you card's button: reads their note, then the wall.
     rsvpThanksCta: "Read our note & leave a wish",
     empty: "The sky is waiting for its first lantern. Write a wish below and release it.",

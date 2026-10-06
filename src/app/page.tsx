@@ -36,10 +36,13 @@ export default function Home() {
             <OurStory />
             <Celebrations />
             <Rsvp />
-            <Gallery />
-            <Music />
+            {/* The note and the wishes wall come straight after RSVP, as a
+                pair — the couple speaks, then guests answer — while a guest
+                who just RSVP'd is most likely to write back. */}
             <Note />
             <Wishes />
+            <Gallery />
+            <Music />
             <Help />
             <SiteFooter />
             <Credit />

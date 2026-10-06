@@ -67,11 +67,11 @@ function sendLove(origin: DOMRect | undefined) {
   haptic(20);
 }
 
-// After RSVPing, guests go to the couple's note — the wishes wall is right
-// after it, so they read the note and then write back, instead of being
-// flung past it. The sections in between skip rendering until they're near
-// the screen (content-visibility in globals.css), so the first scroll aims
-// at estimated heights; once it settles, a second pass lands exactly.
+// After RSVPing, guests go to the couple's note — right below RSVP, with the
+// wishes wall after it — so they read the note and then write back. The note
+// skips rendering until it's near the screen (content-visibility in
+// globals.css), so the first scroll aims at an estimated height; once it
+// settles, a second pass lands exactly.
 function goToNote(e: MouseEvent<HTMLAnchorElement>) {
   const target = document.getElementById("note");
   if (!target) return;
