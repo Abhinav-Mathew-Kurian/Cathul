@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { DONT_COUNT_KEY } from "@/lib/track";
+import { VisitsList } from "./VisitsList";
 import type { Count, VisitStats } from "@/lib/visits-store";
 
 const SECTION_NAMES: Record<string, string> = {
@@ -58,6 +59,8 @@ export function Analytics({ adminKey }: { adminKey: string }) {
   const [stats, setStats] = useState<VisitStats | null>(null);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  // Bumped on every refresh, so the visits list reloads its page too.
+  const [refreshToken, setRefreshToken] = useState(0);
   const dontCount = useSyncExternalStore(subscribeDontCount, readDontCount, () => null);
   const api = `/api/visits/admin?key=${encodeURIComponent(adminKey)}`;
 
@@ -74,13 +77,18 @@ export function Analytics({ adminKey }: { adminKey: string }) {
 
   function refresh() {
     setRefreshing(true);
+    setRefreshToken((n) => n + 1);
     load();
   }
 
   useEffect(() => {
     load();
     // Keeps itself fresh while it's left open.
-    const timer = setInterval(() => document.visibilityState === "visible" && load(), 60_000);
+    const timer = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      setRefreshToken((n) => n + 1);
+      load();
+    }, 60_000);
     return () => clearInterval(timer);
   }, [load]);
 
@@ -166,43 +174,7 @@ export function Analytics({ adminKey }: { adminKey: string }) {
                 </Card>
               </div>
 
-              <Card title="Latest visits">
-                {stats.recent.length === 0 ? (
-                  <Empty />
-                ) : (
-                  <ul className="divide-y divide-ink/8">
-                    {stats.recent.map((v) => (
-                      <li key={v.startedAt + v.place} className="flex items-start justify-between gap-3 py-2.5">
-                        <div className="min-w-0">
-                          <p className="truncate font-body text-sm font-semibold text-ink">
-                            {v.place}
-                            {v.returning && <span className="font-normal text-ink/45"> · came back</span>}
-                          </p>
-                          <p className="font-body text-[11px] text-ink/50">
-                            {DEVICE_NAMES[v.device] ?? v.device} · {v.source} ·{" "}
-                            {v.opened
-                              ? v.furthest
-                                ? `read to ${SECTION_NAMES[v.furthest]}`
-                                : "opened the invite"
-                              : "didn't open the invite"}
-                            {v.rsvp && " · 💌 RSVP'd"}
-                            {v.wish && " · 🏮 left a wish"}
-                          </p>
-                        </div>
-                        <p className="flex-shrink-0 text-right font-body text-[11px] text-ink/50">
-                          {new Date(v.startedAt).toLocaleString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                          {v.opened && <span className="block">{duration(v.minutes)}</span>}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
+              <VisitsList adminKey={adminKey} refreshToken={refreshToken} />
             </>
           )}
 

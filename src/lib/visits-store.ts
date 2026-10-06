@@ -1,3 +1,4 @@
+import type { Filter } from "mongodb";
 import { getDb } from "./mongo";
 import { SECTIONS, type Section } from "./sections";
 
@@ -140,18 +141,23 @@ export type VisitStats = {
   sources: Count[];
   devices: Count[];
   browsers: Count[];
-  recent: {
-    startedAt: string;
-    minutes: number;
-    place: string;
-    device: string;
-    source: string;
-    returning: boolean;
-    opened: boolean;
-    furthest: string | null;
-    rsvp: boolean;
-    wish: boolean;
-  }[];
+};
+
+/** One visit as the couple's list shows it. */
+export type VisitRow = {
+  id: string;
+  startedAt: string;
+  minutes: number;
+  place: string;
+  country: string;
+  device: string;
+  browser: string;
+  source: string;
+  returning: boolean;
+  opened: boolean;
+  furthest: string | null;
+  rsvp: boolean;
+  wish: boolean;
 };
 
 function tally(values: string[], top = 8): Count[] {
@@ -168,6 +174,24 @@ const placeOf = (v: Pick<VisitDoc, "city" | "region" | "country">) =>
 
 const minutesOf = (v: VisitDoc) =>
   v.activeSeconds !== undefined ? v.activeSeconds / 60 : (v.lastSeenAt.getTime() - v.startedAt.getTime()) / 60000;
+
+function toRow(v: VisitDoc): VisitRow {
+  return {
+    id: v._id,
+    startedAt: v.startedAt.toISOString(),
+    minutes: minutesOf(v),
+    place: placeOf(v),
+    country: v.country,
+    device: v.device,
+    browser: v.browser,
+    source: v.source,
+    returning: v.returning,
+    opened: v.opened,
+    furthest: [...SECTIONS].reverse().find((s) => v.sections.includes(s)) ?? null,
+    rsvp: v.rsvp,
+    wish: v.wish,
+  };
+}
 
 export async function getVisitStats(): Promise<VisitStats> {
   const visits = await collection();
@@ -216,17 +240,186 @@ export async function getVisitStats(): Promise<VisitStats> {
     sources: tally(all.map((v) => v.source)),
     devices: tally(all.map((v) => v.device)),
     browsers: tally(all.map((v) => v.browser), 6),
-    recent: all.slice(0, 25).map((v) => ({
-      startedAt: v.startedAt.toISOString(),
-      minutes: minutesOf(v),
-      place: placeOf(v),
-      device: v.device,
-      source: v.source,
-      returning: v.returning,
-      opened: v.opened,
-      furthest: [...SECTIONS].reverse().find((s) => v.sections.includes(s)) ?? null,
-      rsvp: v.rsvp,
-      wish: v.wish,
-    })),
+  };
+}
+
+// ── Every visit, filtered and paged ────────────────────────────────────────
+
+export const VISIT_PAGE_SIZE = 15;
+const RANGES = ["today", "7d", "30d", "all"] as const;
+const SORTS = ["newest", "oldest", "longest"] as const;
+const MIN_SECONDS = [0, 30, 60, 300] as const;
+/** Stands in for an empty town or country in the filters. */
+export const UNKNOWN = "Unknown";
+
+export type VisitFilters = {
+  range: (typeof RANGES)[number];
+  status: "any" | "opened" | "not-opened";
+  visitor: "any" | "new" | "returning";
+  rsvp: boolean;
+  wish: boolean;
+  reached: Section | "";
+  minSeconds: (typeof MIN_SECONDS)[number];
+  device: string;
+  source: string;
+  browser: string;
+  country: string;
+  city: string;
+  sort: (typeof SORTS)[number];
+};
+
+export type VisitFilterOptions = Record<"device" | "source" | "browser" | "country" | "city", string[]>;
+
+export type VisitPage = {
+  visits: VisitRow[];
+  total: number;
+  page: number;
+  pages: number;
+  options?: VisitFilterOptions;
+};
+
+const pick = <T extends string>(value: string | null, allowed: readonly T[], fallback: T): T =>
+  allowed.includes(value as T) ? (value as T) : fallback;
+
+/** Reads the filters from a query string, falling back to "everything" for anything unknown. */
+export function parseVisitFilters(params: URLSearchParams): VisitFilters {
+  const text = (name: string) => (params.get(name) ?? "").slice(0, 80);
+  return {
+    range: pick(params.get("range"), RANGES, "all"),
+    status: pick(params.get("status"), ["any", "opened", "not-opened"] as const, "any"),
+    visitor: pick(params.get("visitor"), ["any", "new", "returning"] as const, "any"),
+    rsvp: params.get("rsvp") === "1",
+    wish: params.get("wish") === "1",
+    reached: pick(params.get("reached"), SECTIONS, "" as Section) as Section | "",
+    minSeconds: MIN_SECONDS.find((s) => String(s) === params.get("minSeconds")) ?? 0,
+    device: text("device"),
+    source: text("source"),
+    browser: text("browser"),
+    country: text("country"),
+    city: text("city"),
+    sort: pick(params.get("sort"), SORTS, "newest"),
+  };
+}
+
+/** Start of the range, India time ("today" starts at midnight IST). */
+function rangeStart(range: VisitFilters["range"]): Date | null {
+  if (range === "all") return null;
+  const midnight = new Date(`${dayKey.format(Date.now())}T00:00:00+05:30`);
+  const days = range === "today" ? 0 : range === "7d" ? 6 : 29;
+  return new Date(midnight.getTime() - days * 24 * 60 * 60 * 1000);
+}
+
+const exact = (value: string) => (value === UNKNOWN ? "" : value);
+
+function mongoFilter(f: VisitFilters): Filter<VisitDoc> {
+  const since = rangeStart(f.range);
+  return {
+    ...(since && { startedAt: { $gte: since } }),
+    ...(f.status !== "any" && { opened: f.status === "opened" }),
+    ...(f.visitor !== "any" && { returning: f.visitor === "returning" }),
+    ...(f.rsvp && { rsvp: true }),
+    ...(f.wish && { wish: true }),
+    ...(f.reached && { sections: f.reached }),
+    ...(f.device && { device: f.device as VisitDoc["device"] }),
+    ...(f.source && { source: f.source }),
+    ...(f.browser && { browser: f.browser }),
+    ...(f.country && { country: exact(f.country) }),
+    ...(f.city && { city: exact(f.city) }),
+  };
+}
+
+function matchesFilter(v: VisitDoc, f: VisitFilters): boolean {
+  const since = rangeStart(f.range);
+  return (
+    (!since || v.startedAt >= since) &&
+    (f.status === "any" || v.opened === (f.status === "opened")) &&
+    (f.visitor === "any" || v.returning === (f.visitor === "returning")) &&
+    (!f.rsvp || v.rsvp) &&
+    (!f.wish || v.wish) &&
+    (!f.reached || v.sections.includes(f.reached)) &&
+    (!f.device || v.device === f.device) &&
+    (!f.source || v.source === f.source) &&
+    (!f.browser || v.browser === f.browser) &&
+    (!f.country || v.country === exact(f.country)) &&
+    (!f.city || v.city === exact(f.city)) &&
+    minutesOf(v) * 60 >= f.minSeconds
+  );
+}
+
+const sortedOptions = (values: string[]) =>
+  [...new Set(values.map((v) => v || UNKNOWN))].sort((a, b) => a.localeCompare(b));
+
+/**
+ * One page of visits matching `filters`. The database does the filtering,
+ * sorting and paging, so the dashboard only ever downloads fifteen rows.
+ * `withOptions` adds every value each dropdown can offer.
+ */
+export async function listVisits(filters: VisitFilters, page: number, withOptions = false): Promise<VisitPage> {
+  const skip = (Math.max(1, page) - 1) * VISIT_PAGE_SIZE;
+  const visits = await collection();
+  let rows: VisitDoc[];
+  let total: number;
+  let options: VisitFilterOptions | undefined;
+
+  if (visits) {
+    // Time spent, as minutesOf() works it out, in seconds — so "1 min or
+    // more" and "longest first" run in the database.
+    const seconds = {
+      $ifNull: ["$activeSeconds", { $divide: [{ $subtract: ["$lastSeenAt", "$startedAt"] }, 1000] }],
+    };
+    const sort =
+      filters.sort === "longest"
+        ? { seconds: -1 as const, startedAt: -1 as const }
+        : { startedAt: filters.sort === "oldest" ? (1 as const) : (-1 as const) };
+    const [result] = await visits
+      .aggregate<{ rows: VisitDoc[]; total: { n: number }[] }>([
+        { $match: mongoFilter(filters) },
+        { $addFields: { seconds } },
+        ...(filters.minSeconds ? [{ $match: { seconds: { $gte: filters.minSeconds } } }] : []),
+        { $sort: sort },
+        { $facet: { rows: [{ $skip: skip }, { $limit: VISIT_PAGE_SIZE }], total: [{ $count: "n" }] } },
+      ])
+      .toArray();
+    rows = result?.rows ?? [];
+    total = result?.total[0]?.n ?? 0;
+    if (withOptions) {
+      const [device, source, browser, country, city] = await Promise.all(
+        (["device", "source", "browser", "country", "city"] as const).map((field) => visits.distinct(field))
+      );
+      options = {
+        device: sortedOptions(device as string[]),
+        source: sortedOptions(source as string[]),
+        browser: sortedOptions(browser as string[]),
+        country: sortedOptions(country as string[]),
+        city: sortedOptions(city as string[]),
+      };
+    }
+  } else {
+    const all = [...memory.values()];
+    const matched = all.filter((v) => matchesFilter(v, filters));
+    matched.sort((a, b) =>
+      filters.sort === "longest"
+        ? minutesOf(b) - minutesOf(a) || b.startedAt.getTime() - a.startedAt.getTime()
+        : (b.startedAt.getTime() - a.startedAt.getTime()) * (filters.sort === "oldest" ? -1 : 1)
+    );
+    rows = matched.slice(skip, skip + VISIT_PAGE_SIZE);
+    total = matched.length;
+    if (withOptions) {
+      options = {
+        device: sortedOptions(all.map((v) => v.device)),
+        source: sortedOptions(all.map((v) => v.source)),
+        browser: sortedOptions(all.map((v) => v.browser)),
+        country: sortedOptions(all.map((v) => v.country)),
+        city: sortedOptions(all.map((v) => v.city)),
+      };
+    }
+  }
+
+  return {
+    visits: rows.map(toRow),
+    total,
+    page: Math.max(1, page),
+    pages: Math.max(1, Math.ceil(total / VISIT_PAGE_SIZE)),
+    ...(options && { options }),
   };
 }
