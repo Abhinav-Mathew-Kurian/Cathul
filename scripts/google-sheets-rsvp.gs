@@ -2,7 +2,8 @@
  * Google Apps Script that receives RSVPs and wishes from the wedding site
  * and appends each one as a row in this spreadsheet — RSVPs on the "RSVPs"
  * tab, wishes on the "Wishes" tab (with a "Hidden" column the site keeps up
- * to date when a wish is hidden from the wall).
+ * to date when a wish is hidden from the wall, and a wish's row removed when
+ * the couple deletes it for good).
  *
  * One-time setup:
  *  1. Create a Google Sheet (e.g. "Cathul RSVPs").
@@ -24,6 +25,9 @@
  * KEEP your existing SECRET line, then deploy a new version as above. Until
  * you do, the site's wishes are simply not copied here (the old script
  * rejects them) — nothing is lost, they're all in the database.
+ *
+ * Deleting wishes from the sheet needs this version too: an older script
+ * rejects the request and keeps the rows (still marked "Hidden").
  */
 
 const SECRET = "change-me-to-a-long-random-string";
@@ -42,8 +46,11 @@ function doPost(e) {
     return json({ ok: false, error: "Invalid JSON" });
   }
 
-  // Wishes authenticate with `auth`, RSVPs with `secret`.
-  if ((data.kind ? data.auth : data.secret) !== SECRET) {
+  // Wishes authenticate with `auth`, RSVPs with `secret` — and deletes with
+  // `deleteAuth`, so a script from before deletes existed answers
+  // "Unauthorized" instead of filing the request as a bogus RSVP row.
+  const auth = data.kind === "wish-deleted" ? data.deleteAuth : data.kind ? data.auth : data.secret;
+  if (auth !== SECRET) {
     return json({ ok: false, error: "Unauthorized" });
   }
 
@@ -76,6 +83,27 @@ function doPost(e) {
         }
       }
       return json({ ok: true });
+    }
+    if (data.kind === "wish-deleted") {
+      const doomed = {};
+      (data.ids || []).forEach((id) => (doomed[String(id)] = true));
+      const sheet = getWishesSheet();
+      const last = sheet.getLastRow();
+      let deleted = 0;
+      if (last > 1) {
+        const ids = sheet.getRange(2, WISH_ID_COLUMN, last - 1, 1).getValues();
+        // Bottom up, so removing a row never shifts one still to be checked.
+        for (let i = ids.length - 1; i >= 0; i--) {
+          if (doomed[String(ids[i][0])]) {
+            sheet.deleteRow(i + 2);
+            deleted++;
+          }
+        }
+      }
+      return json({ ok: true, deleted: deleted });
+    }
+    if (data.kind) {
+      return json({ ok: false, error: "Unknown kind: " + data.kind });
     }
 
     const sheet = getSheet();

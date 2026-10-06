@@ -1,5 +1,5 @@
 import { after, NextRequest, NextResponse } from "next/server";
-import { markWishHiddenInSheet } from "@/lib/rsvp-sheet";
+import { deleteWishesFromSheet, markWishHiddenInSheet } from "@/lib/rsvp-sheet";
 import { MAX_PINNED } from "@/lib/wish-rules";
 import { deleteHiddenWishes, listAllWishes, setWishHidden, setWishPinned } from "@/lib/wishes-store";
 
@@ -58,8 +58,11 @@ export async function DELETE(request: NextRequest) {
   const id = typeof body?.id === "string" && body.id ? body.id : null;
   if (!id && body?.allHidden !== true) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   const deleted = await deleteHiddenWishes(id);
-  if (id && !deleted) {
+  if (id && deleted.length === 0) {
     return NextResponse.json({ error: "Only a hidden wish can be deleted — hide it first." }, { status: 400 });
   }
-  return NextResponse.json({ ok: true, deleted });
+  after(() =>
+    deleteWishesFromSheet(deleted).catch((error) => console.error("Failed to delete wishes from Google Sheet:", error))
+  );
+  return NextResponse.json({ ok: true, deleted: deleted.length });
 }

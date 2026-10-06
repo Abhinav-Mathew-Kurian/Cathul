@@ -338,16 +338,26 @@ export async function setWishPinned(id: string, pinned: boolean): Promise<PinRes
  * Permanently deletes hidden wishes — the one wish `id`, or every hidden one
  * when `id` is null. Only ever hidden ones: a wish has to come off the wall
  * before it can be deleted, so nothing showing can vanish by a stray tap.
- * Answers how many were deleted.
+ * Answers the ids that were deleted, so the Google Sheet can drop them too.
  */
-export async function deleteHiddenWishes(id: string | null): Promise<number> {
+export async function deleteHiddenWishes(id: string | null): Promise<string[]> {
   const c = await collections();
-  if (c) return (await c.wishes.deleteMany({ ...(id !== null && { _id: id }), hidden: true })).deletedCount;
+  if (c) {
+    const filter = { ...(id !== null && { _id: id }), hidden: true };
+    const ids = (await c.wishes.find(filter, { projection: { _id: 1 } }).toArray()).map((w) => w._id);
+    if (ids.length === 0) return [];
+    const { deletedCount } = await c.wishes.deleteMany({ _id: { $in: ids }, hidden: true });
+    if (deletedCount === ids.length) return ids;
+    // One was shown again between the read and the delete: it's still here,
+    // so it mustn't leave the sheet either.
+    const kept = new Set((await c.wishes.find({ _id: { $in: ids } }, { projection: { _id: 1 } }).toArray()).map((w) => w._id));
+    return ids.filter((wishId) => !kept.has(wishId));
+  }
   return serialized(async () => {
     const doomed = (await readLocal()).filter((w) => w.hidden && (id === null || w._id === id));
     if (doomed.length) {
       await appendFile(LOCAL_FILE, doomed.map((w) => JSON.stringify({ _id: w._id, deleted: true }) + "\n").join(""), "utf-8");
     }
-    return doomed.length;
+    return doomed.map((w) => w._id);
   });
 }

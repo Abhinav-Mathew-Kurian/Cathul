@@ -46,6 +46,14 @@ export function appendWishToSheet(
   return post({ auth: secret(), kind: "wish", ...wish });
 }
 
+// `deleteAuth` rather than `auth`, for the same reason as above: a script
+// from before deletes existed rejects this outright instead of appending it
+// as an RSVP row. The rows stay (marked "Hidden") until the script is updated.
+export function deleteWishesFromSheet(ids: string[]): Promise<void> {
+  if (ids.length === 0) return Promise.resolve();
+  return post({ deleteAuth: secret(), kind: "wish-deleted", ids });
+}
+
 export function markWishHiddenInSheet(id: string, hidden: boolean): Promise<void> {
   return post({ auth: secret(), kind: "wish-hidden", id, hidden });
 }
