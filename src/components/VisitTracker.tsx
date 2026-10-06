@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { startTracking, track } from "@/lib/track";
+import { startTracking, track, watchActiveTime } from "@/lib/track";
 import { SECTIONS, type Section } from "@/lib/sections";
 
 // Counts the visit and how far down the invitation it gets. A section counts
@@ -23,13 +23,11 @@ export function VisitTracker() {
       if (section) observer.observe(section);
     }
 
-    // Marks how long they stayed: the last thing a visit hears is the tab
-    // going to the background or closing.
-    const onHide = () => document.visibilityState === "hidden" && track("ping");
-    document.addEventListener("visibilitychange", onHide);
+    // How long they really spent — reported whenever the page is hidden.
+    const stopWatching = watchActiveTime();
     return () => {
       observer.disconnect();
-      document.removeEventListener("visibilitychange", onHide);
+      stopWatching();
     };
   }, []);
 

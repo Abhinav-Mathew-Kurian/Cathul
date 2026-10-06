@@ -12,6 +12,54 @@ const VISITOR_KEY = "cathul:visitor";
 let visitId: string | null = null;
 const sent = new Set<string>();
 
+// ── Time spent ─────────────────────────────────────────────────────────────
+// Only time the page is on screen *and* in use counts. Time in another app or
+// tab is skipped (the clock pauses while the page is hidden), and so is a
+// page left open untouched: each gap between a guest's touches, scrolls or
+// key presses counts for at most IDLE_MS. Reading a section, or a song playing
+// while they read, fits well inside that; a phone face-down on the table or a
+// desktop tab left behind another window doesn't.
+const IDLE_MS = 90_000;
+let activeMs = 0;
+let lastActive = 0;
+let counting = false;
+
+function tick() {
+  const now = performance.now();
+  if (counting) activeMs += Math.min(now - lastActive, IDLE_MS);
+  lastActive = now;
+}
+
+const activeSeconds = () => {
+  tick();
+  return Math.round(activeMs / 1000);
+};
+
+/** Starts the clock; returns a cleanup. Called once by VisitTracker. */
+export function watchActiveTime() {
+  counting = document.visibilityState === "visible";
+  lastActive = performance.now();
+  const onActivity = () => document.visibilityState === "visible" && tick();
+  const onVisibility = () => {
+    if (document.visibilityState === "hidden") {
+      // The guest is leaving or switching away: close the stretch and report it.
+      tick();
+      counting = false;
+      track("ping");
+    } else {
+      counting = true;
+      lastActive = performance.now();
+    }
+  };
+  const events = ["pointerdown", "keydown", "scroll", "wheel", "touchstart"] as const;
+  for (const e of events) window.addEventListener(e, onActivity, { passive: true });
+  document.addEventListener("visibilitychange", onVisibility);
+  return () => {
+    for (const e of events) window.removeEventListener(e, onActivity);
+    document.removeEventListener("visibilitychange", onVisibility);
+  };
+}
+
 function send(payload: object) {
   const body = JSON.stringify(payload);
   if (!navigator.sendBeacon?.("/api/visit", body)) {
@@ -55,5 +103,7 @@ export function track(event: VisitEvent) {
     if (sent.has(event)) return;
     sent.add(event);
   }
-  send({ id: visitId, event });
+  // Every event carries the running total, so a lost "leaving" beacon (some
+  // in-app browsers close without one) only loses the last stretch.
+  send({ id: visitId, event, active: activeSeconds() });
 }

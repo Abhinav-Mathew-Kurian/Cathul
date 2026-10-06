@@ -290,11 +290,11 @@ export function InvitationGate({ children }: { children: ReactNode }) {
   function handleOpen() {
     if (openedRef.current) return;
     openedRef.current = true;
-    track("open");
     // Called synchronously from this click — the one gesture every browser
     // reliably honors for starting audio, so the music begins the instant
     // the invitation opens instead of waiting for a separate Play tap.
     startPlayback();
+    track("open");
     haptic([14, 40, 22]);
     setStage("cracking");
 

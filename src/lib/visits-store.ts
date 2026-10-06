@@ -29,6 +29,12 @@ type VisitDoc = {
   sections: Section[];
   rsvp: boolean;
   wish: boolean;
+  /**
+   * Seconds the guest actually spent with the page on screen and in use (see
+   * src/lib/track.ts). Absent on visits from before it was measured — those
+   * keep their first-to-last-signal span.
+   */
+  activeSeconds?: number;
 };
 
 export type VisitStart = Pick<VisitDoc, "_id" | "visitorId" | "returning" | "source" | "device" | "browser" | "country" | "region" | "city">;
@@ -52,7 +58,16 @@ async function collection() {
 export async function startVisit(start: VisitStart): Promise<void> {
   const now = new Date();
   const { _id, ...fields } = start;
-  const doc = { ...fields, startedAt: now, lastSeenAt: now, opened: false, sections: [], rsvp: false, wish: false };
+  const doc = {
+    ...fields,
+    startedAt: now,
+    lastSeenAt: now,
+    opened: false,
+    sections: [],
+    rsvp: false,
+    wish: false,
+    activeSeconds: 0,
+  };
   const visits = await collection();
   if (!visits) {
     if (!memory.has(_id)) memory.set(_id, { _id, ...doc });
@@ -62,7 +77,8 @@ export async function startVisit(start: VisitStart): Promise<void> {
   await visits.updateOne({ _id }, { $setOnInsert: doc }, { upsert: true });
 }
 
-export async function recordVisitEvent(id: string, event: VisitEvent): Promise<void> {
+/** `activeSeconds` only ever raises the stored figure, so a late or out-of-order beacon can't lower it. */
+export async function recordVisitEvent(id: string, event: VisitEvent, activeSeconds: number | null): Promise<void> {
   const lastSeenAt = new Date();
   const set: Partial<VisitDoc> = { lastSeenAt };
   let section: Section | null = null;
@@ -76,13 +92,18 @@ export async function recordVisitEvent(id: string, event: VisitEvent): Promise<v
     if (!doc) return;
     Object.assign(doc, set);
     if (section && !doc.sections.includes(section)) doc.sections.push(section);
+    if (activeSeconds !== null) doc.activeSeconds = Math.max(doc.activeSeconds ?? 0, activeSeconds);
     return;
   }
   await visits.updateOne(
     // A visit stops counting time after a day, so a tab left open for a
     // week doesn't read as a week-long visit.
     { _id: id, startedAt: { $gt: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
-    { $set: set, ...(section && { $addToSet: { sections: section } }) }
+    {
+      $set: set,
+      ...(section && { $addToSet: { sections: section } }),
+      ...(activeSeconds !== null && { $max: { activeSeconds } }),
+    }
   );
 }
 
@@ -145,7 +166,8 @@ function tally(values: string[], top = 8): Count[] {
 const placeOf = (v: Pick<VisitDoc, "city" | "region" | "country">) =>
   [v.city, v.region].filter(Boolean).join(", ") || v.country || "Unknown";
 
-const minutesOf = (v: VisitDoc) => (v.lastSeenAt.getTime() - v.startedAt.getTime()) / 60000;
+const minutesOf = (v: VisitDoc) =>
+  v.activeSeconds !== undefined ? v.activeSeconds / 60 : (v.lastSeenAt.getTime() - v.startedAt.getTime()) / 60000;
 
 export async function getVisitStats(): Promise<VisitStats> {
   const visits = await collection();

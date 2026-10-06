@@ -92,7 +92,9 @@ export async function POST(request: NextRequest) {
         city: header(request, "x-vercel-ip-city"),
       });
     } else if (EVENTS.has(event)) {
-      await recordVisitEvent(id, event as VisitEvent);
+      const active = Number(body?.active);
+      const activeSeconds = Number.isFinite(active) && active >= 0 ? Math.min(Math.round(active), 86_400) : null;
+      await recordVisitEvent(id, event as VisitEvent, activeSeconds);
     }
   } catch (error) {
     console.error("Failed to record visit:", error);
