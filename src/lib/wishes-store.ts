@@ -122,7 +122,8 @@ let localQueue: Promise<unknown> = Promise.resolve();
 type LocalLine =
   | (Omit<WishDoc, "createdAt"> & { createdAt: string })
   | { _id: string; hiddenUpdate: boolean }
-  | { _id: string; pinnedUpdate: boolean };
+  | { _id: string; pinnedUpdate: boolean }
+  | { _id: string; deleted: true };
 
 async function readLocal(): Promise<WishDoc[]> {
   let raw = "";
@@ -141,6 +142,8 @@ async function readLocal(): Promise<WishDoc[]> {
     } else if ("pinnedUpdate" in entry) {
       const doc = byId.get(entry._id);
       if (doc) doc.pinned = entry.pinnedUpdate;
+    } else if ("deleted" in entry) {
+      byId.delete(entry._id);
     } else {
       byId.set(entry._id, { ...entry, createdAt: new Date(entry.createdAt) });
     }
@@ -328,5 +331,23 @@ export async function setWishPinned(id: string, pinned: boolean): Promise<PinRes
     }
     await appendFile(LOCAL_FILE, JSON.stringify({ _id: id, pinnedUpdate: pinned }) + "\n", "utf-8");
     return "ok";
+  });
+}
+
+/**
+ * Permanently deletes hidden wishes — the one wish `id`, or every hidden one
+ * when `id` is null. Only ever hidden ones: a wish has to come off the wall
+ * before it can be deleted, so nothing showing can vanish by a stray tap.
+ * Answers how many were deleted.
+ */
+export async function deleteHiddenWishes(id: string | null): Promise<number> {
+  const c = await collections();
+  if (c) return (await c.wishes.deleteMany({ ...(id !== null && { _id: id }), hidden: true })).deletedCount;
+  return serialized(async () => {
+    const doomed = (await readLocal()).filter((w) => w.hidden && (id === null || w._id === id));
+    if (doomed.length) {
+      await appendFile(LOCAL_FILE, doomed.map((w) => JSON.stringify({ _id: w._id, deleted: true }) + "\n").join(""), "utf-8");
+    }
+    return doomed.length;
   });
 }

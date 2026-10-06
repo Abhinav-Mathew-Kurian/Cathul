@@ -1,10 +1,10 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { markWishHiddenInSheet } from "@/lib/rsvp-sheet";
 import { MAX_PINNED } from "@/lib/wish-rules";
-import { listAllWishes, setWishHidden, setWishPinned } from "@/lib/wishes-store";
+import { deleteHiddenWishes, listAllWishes, setWishHidden, setWishPinned } from "@/lib/wishes-store";
 
 // For the couple only: every wish (private ones included) and the switches to
-// hide or restore a public one, and to pin it to the sky. Gated by the same shared secret as the RSVP
+// hide or restore a public one, to pin it to the sky, and to delete hidden ones for good. Gated by the same shared secret as the RSVP
 // export (RSVP_EXPORT_KEY) — with no key configured, it's simply off.
 
 function authorized(request: NextRequest) {
@@ -49,4 +49,17 @@ export async function PATCH(request: NextRequest) {
     markWishHiddenInSheet(id, body.hidden).catch((error) => console.error("Failed to update wish in Google Sheet:", error))
   );
   return NextResponse.json({ ok: true });
+}
+
+/** Body `{ id }` deletes that hidden wish; `{ allHidden: true }` deletes every hidden one. */
+export async function DELETE(request: NextRequest) {
+  if (!authorized(request)) return notFound();
+  const body = await request.json().catch(() => null);
+  const id = typeof body?.id === "string" && body.id ? body.id : null;
+  if (!id && body?.allHidden !== true) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  const deleted = await deleteHiddenWishes(id);
+  if (id && !deleted) {
+    return NextResponse.json({ error: "Only a hidden wish can be deleted — hide it first." }, { status: 400 });
+  }
+  return NextResponse.json({ ok: true, deleted });
 }

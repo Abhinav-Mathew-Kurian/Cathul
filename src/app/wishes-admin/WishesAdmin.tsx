@@ -59,6 +59,28 @@ export function WishesAdmin({ adminKey }: { adminKey: string }) {
     setBusy(null);
   }
 
+  /** Deletes one hidden wish for good, or every hidden one when `wish` is null. */
+  async function deleteHidden(wish: AdminWish | null) {
+    const hiddenCount = (wishes ?? []).filter((w) => w.hidden).length;
+    const question = wish
+      ? `Delete ${wish.name}'s wish for good? This can't be undone.`
+      : `Delete all ${hiddenCount} hidden wishes for good? This can't be undone.`;
+    if (!confirm(question)) return;
+    setBusy(wish?.id ?? "all-hidden");
+    const res = await fetch(api, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(wish ? { id: wish.id } : { allHidden: true }),
+    }).catch(() => null);
+    if (res?.ok) {
+      setWishes((all) => all?.filter((w) => (wish ? w.id !== wish.id : !w.hidden)) ?? null);
+    } else {
+      const data = await res?.json().catch(() => null);
+      alert(data?.error ?? "Couldn't delete. Please try again.");
+    }
+    setBusy(null);
+  }
+
   const shown = (wishes ?? []).filter((w) => matches(w, filter));
   const count = (f: Filter) => (wishes ?? []).filter((w) => matches(w, f)).length;
 
@@ -76,7 +98,7 @@ export function WishesAdmin({ adminKey }: { adminKey: string }) {
       <p className="mt-1 font-body text-sm text-ink/60">
         Every wish, including private ones. Hiding a public wish takes it off the wall within about 10 seconds.
         Pinning one keeps its lantern in the sky for good, however many new wishes arrive — up to {MAX_PINNED}{" "}
-        at a time.
+        at a time. A wish has to be hidden before it can be deleted for good.
       </p>
 
       {error && <p className="mt-6 font-body text-sm text-rose-deep">{error}</p>}
@@ -98,6 +120,17 @@ export function WishesAdmin({ adminKey }: { adminKey: string }) {
               </button>
             ))}
           </div>
+
+          {filter === "hidden" && count("hidden") > 0 && (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => deleteHidden(null)}
+              className="mt-4 rounded-full bg-rose-deep px-4 py-2 font-body text-xs font-bold text-white disabled:opacity-50"
+            >
+              Delete all {count("hidden")} hidden for good
+            </button>
+          )}
 
           <ul className="mt-6 space-y-3">
             {shown.map((wish) => (
@@ -138,6 +171,16 @@ export function WishesAdmin({ adminKey }: { adminKey: string }) {
                       >
                         {wish.hidden ? "Show again" : "Hide"}
                       </button>
+                      {wish.hidden && (
+                        <button
+                          type="button"
+                          disabled={busy === wish.id}
+                          onClick={() => deleteHidden(wish)}
+                          className="rounded-full border border-rose-deep bg-rose-deep px-3 py-1 font-body text-xs font-semibold text-white disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
