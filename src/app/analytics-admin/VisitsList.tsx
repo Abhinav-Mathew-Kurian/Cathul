@@ -285,7 +285,7 @@ function VisitItem({ visit: v }: { visit: VisitRow }) {
     <li className="flex items-start justify-between gap-3 py-3">
       <div className="min-w-0">
         <p className="truncate font-body text-sm font-semibold text-ink">
-          {v.place}
+          <span className="text-rose-deep">Guest {v.guest}</span> · {v.place}
           {v.returning && <span className="font-normal text-ink/45"> · came back</span>}
         </p>
         <p className="mt-0.5 font-body text-xs leading-relaxed text-ink/55">

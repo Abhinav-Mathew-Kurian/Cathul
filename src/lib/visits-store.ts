@@ -146,6 +146,8 @@ export type VisitStats = {
 /** One visit as the couple's list shows it. */
 export type VisitRow = {
   id: string;
+  /** Which guest: 1 for the first browser ever to visit, 2 for the next, and so on. */
+  guest: number;
   startedAt: string;
   minutes: number;
   place: string;
@@ -175,9 +177,33 @@ const placeOf = (v: Pick<VisitDoc, "city" | "region" | "country">) =>
 const minutesOf = (v: VisitDoc) =>
   v.activeSeconds !== undefined ? v.activeSeconds / 60 : (v.lastSeenAt.getTime() - v.startedAt.getTime()) / 60000;
 
-function toRow(v: VisitDoc): VisitRow {
+/**
+ * Numbers every visitor id by its first visit, oldest first, so the same
+ * browser keeps the same number on every visit and every page of the list.
+ */
+async function guestNumbers(visits: Awaited<ReturnType<typeof collection>>): Promise<Map<string, number>> {
+  const ids = visits
+    ? (
+        await visits
+          .aggregate<{ _id: string }>([
+            { $group: { _id: "$visitorId", first: { $min: "$startedAt" } } },
+            { $sort: { first: 1, _id: 1 } },
+            { $project: { _id: 1 } },
+          ])
+          .toArray()
+      ).map((g) => g._id)
+    : [...memory.values()]
+        .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime())
+        .map((v) => v.visitorId);
+  const numbers = new Map<string, number>();
+  for (const id of ids) if (!numbers.has(id)) numbers.set(id, numbers.size + 1);
+  return numbers;
+}
+
+function toRow(v: VisitDoc, guest: number): VisitRow {
   return {
     id: v._id,
+    guest,
     startedAt: v.startedAt.toISOString(),
     minutes: minutesOf(v),
     place: placeOf(v),
@@ -415,8 +441,9 @@ export async function listVisits(filters: VisitFilters, page: number, withOption
     }
   }
 
+  const guests = await guestNumbers(visits);
   return {
-    visits: rows.map(toRow),
+    visits: rows.map((v) => toRow(v, guests.get(v.visitorId) ?? 0)),
     total,
     page: Math.max(1, page),
     pages: Math.max(1, Math.ceil(total / VISIT_PAGE_SIZE)),
