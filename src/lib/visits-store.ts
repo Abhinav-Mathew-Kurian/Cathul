@@ -148,6 +148,8 @@ export type VisitRow = {
   id: string;
   /** Which guest: 1 for the first browser ever to visit, 2 for the next, and so on. */
   guest: number;
+  /** Every visit that guest has made, this one included. */
+  guestVisits: number;
   startedAt: string;
   minutes: number;
   place: string;
@@ -177,33 +179,38 @@ const placeOf = (v: Pick<VisitDoc, "city" | "region" | "country">) =>
 const minutesOf = (v: VisitDoc) =>
   v.activeSeconds !== undefined ? v.activeSeconds / 60 : (v.lastSeenAt.getTime() - v.startedAt.getTime()) / 60000;
 
+type Guest = { number: number; visits: number };
+
 /**
  * Numbers every visitor id by its first visit, oldest first, so the same
  * browser keeps the same number on every visit and every page of the list.
  */
-async function guestNumbers(visits: Awaited<ReturnType<typeof collection>>): Promise<Map<string, number>> {
-  const ids = visits
-    ? (
-        await visits
-          .aggregate<{ _id: string }>([
-            { $group: { _id: "$visitorId", first: { $min: "$startedAt" } } },
-            { $sort: { first: 1, _id: 1 } },
-            { $project: { _id: 1 } },
-          ])
-          .toArray()
-      ).map((g) => g._id)
+async function guestNumbers(visits: Awaited<ReturnType<typeof collection>>): Promise<Map<string, Guest>> {
+  const groups = visits
+    ? await visits
+        .aggregate<{ _id: string; visits: number }>([
+          { $group: { _id: "$visitorId", first: { $min: "$startedAt" }, visits: { $sum: 1 } } },
+          { $sort: { first: 1, _id: 1 } },
+          { $project: { visits: 1 } },
+        ])
+        .toArray()
     : [...memory.values()]
         .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime())
-        .map((v) => v.visitorId);
-  const numbers = new Map<string, number>();
-  for (const id of ids) if (!numbers.has(id)) numbers.set(id, numbers.size + 1);
-  return numbers;
+        .map((v) => ({ _id: v.visitorId, visits: 1 }));
+  const guests = new Map<string, Guest>();
+  for (const { _id, visits } of groups) {
+    const known = guests.get(_id);
+    if (known) known.visits += visits;
+    else guests.set(_id, { number: guests.size + 1, visits });
+  }
+  return guests;
 }
 
-function toRow(v: VisitDoc, guest: number): VisitRow {
+function toRow(v: VisitDoc, guest: Guest | undefined): VisitRow {
   return {
     id: v._id,
-    guest,
+    guest: guest?.number ?? 0,
+    guestVisits: guest?.visits ?? 1,
     startedAt: v.startedAt.toISOString(),
     minutes: minutesOf(v),
     place: placeOf(v),
@@ -443,10 +450,29 @@ export async function listVisits(filters: VisitFilters, page: number, withOption
 
   const guests = await guestNumbers(visits);
   return {
-    visits: rows.map((v) => toRow(v, guests.get(v.visitorId) ?? 0)),
+    visits: rows.map((v) => toRow(v, guests.get(v.visitorId))),
     total,
     page: Math.max(1, page),
     pages: Math.max(1, Math.ceil(total / VISIT_PAGE_SIZE)),
     ...(options && { options }),
   };
+}
+
+// ── One guest ──────────────────────────────────────────────────────────────
+
+export type GuestVisits = { guest: number; visits: VisitRow[] };
+
+/** Every visit by guest number `guest`, newest first, or null if there's no such guest. */
+export async function getGuestVisits(guest: number): Promise<GuestVisits | null> {
+  const visits = await collection();
+  const guests = await guestNumbers(visits);
+  const entry = [...guests].find(([, g]) => g.number === guest);
+  if (!entry) return null;
+  const [visitorId, info] = entry;
+  const docs = visits
+    ? await visits.find({ visitorId }).sort({ startedAt: -1 }).limit(500).toArray()
+    : [...memory.values()]
+        .filter((v) => v.visitorId === visitorId)
+        .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+  return { guest, visits: docs.map((v) => toRow(v, info)) };
 }

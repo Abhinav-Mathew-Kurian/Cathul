@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SECTIONS } from "@/lib/sections";
-import type { VisitFilterOptions, VisitFilters, VisitPage, VisitRow } from "@/lib/visits-store";
+import type { GuestVisits, VisitFilterOptions, VisitFilters, VisitPage, VisitRow } from "@/lib/visits-store";
 
 // Every visit, fifteen at a time, with every filter the data supports. The
 // server does the filtering and paging, so this only ever holds one page.
+// Tapping a visit opens everything its guest has done across all their visits.
 
 const SECTION_NAMES: Record<string, string> = {
   story: "Our Story",
@@ -81,6 +82,7 @@ export function VisitsList({ adminKey, refreshToken }: { adminKey: string; refre
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [openGuest, setOpenGuest] = useState<number | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
   // A new page of results whenever the filters, the page or a refresh change.
@@ -218,7 +220,7 @@ export function VisitsList({ adminKey, refreshToken }: { adminKey: string; refre
         ) : (
           <ul className="divide-y divide-ink/8">
             {data.visits.map((v) => (
-              <VisitItem key={v.id} visit={v} />
+              <VisitItem key={v.id} visit={v} onOpen={() => setOpenGuest(v.guest)} />
             ))}
           </ul>
         )}
@@ -259,6 +261,10 @@ export function VisitsList({ adminKey, refreshToken }: { adminKey: string; refre
           onClose={() => setSheetOpen(false)}
         />
       )}
+
+      {openGuest !== null && (
+        <GuestSheet adminKey={adminKey} guest={openGuest} onClose={() => setOpenGuest(null)} />
+      )}
     </section>
   );
 }
@@ -280,12 +286,23 @@ function chipsFor(f: VisitFilters): [string, Partial<VisitFilters>][] {
   return chips;
 }
 
-function VisitItem({ visit: v }: { visit: VisitRow }) {
-  return (
-    <li className="flex items-start justify-between gap-3 py-3">
+const visitCount = (n: number) => `${n} ${n === 1 ? "visit" : "visits"}`;
+
+/** One visit. In the list it names its guest and opens them; in a guest's sheet the guest goes without saying. */
+function VisitItem({ visit: v, onOpen }: { visit: VisitRow; onOpen?: () => void }) {
+  const body = (
+    <>
       <div className="min-w-0">
         <p className="truncate font-body text-sm font-semibold text-ink">
-          <span className="text-rose-deep">Guest {v.guest}</span> · {v.place}
+          {onOpen && (
+            <>
+              <span className="text-rose-deep">
+                Guest {v.guest} <span className="font-normal">({visitCount(v.guestVisits)})</span>
+              </span>{" "}
+              ·{" "}
+            </>
+          )}
+          {v.place}
           {v.returning && <span className="font-normal text-ink/45"> · came back</span>}
         </p>
         <p className="mt-0.5 font-body text-xs leading-relaxed text-ink/55">
@@ -308,6 +325,19 @@ function VisitItem({ visit: v }: { visit: VisitRow }) {
         </span>
         {v.opened && <span className="mt-0.5 block font-semibold text-ink/70">{duration(v.minutes)}</span>}
       </p>
+    </>
+  );
+  if (!onOpen) return <li className="flex items-start justify-between gap-3 py-3">{body}</li>;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Guest ${v.guest}, ${visitCount(v.guestVisits)} — see everything`}
+        className="-mx-2 flex w-[calc(100%+1rem)] items-start justify-between gap-3 rounded-2xl px-2 py-3 text-left transition-colors hover:bg-ink/4 active:bg-ink/6"
+      >
+        {body}
+      </button>
     </li>
   );
 }
@@ -319,7 +349,145 @@ function Tag({ tone, children }: { tone: "ok" | "rose" | "muted"; children: Reac
   );
 }
 
-// ── The filter sheet ───────────────────────────────────────────────────────
+// ── The sheets ─────────────────────────────────────────────────────────────
+
+/** While a sheet is open: the page behind it stays put, and Escape closes it. */
+function useSheet(onClose: () => void) {
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+}
+
+const shortDate = (iso: string) =>
+  new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
+/** How often each value comes up, most first. */
+function tally(values: string[]): [string, number][] {
+  const counts = new Map<string, number>();
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1]);
+}
+
+/** Everything one guest has done, over every visit they've made. */
+function GuestSheet({ adminKey, guest, onClose }: { adminKey: string; guest: number; onClose: () => void }) {
+  const [data, setData] = useState<GuestVisits | null>(null);
+  const [failed, setFailed] = useState(false);
+  useSheet(onClose);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`/api/visits/admin?key=${encodeURIComponent(adminKey)}&view=guest&guest=${guest}`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then(setData)
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.error(error);
+        setFailed(true);
+      });
+    return () => controller.abort();
+  }, [adminKey, guest]);
+
+  const visits = data?.visits ?? [];
+  const opened = visits.filter((v) => v.opened);
+  // Visits arrive newest first.
+  const first = visits.at(-1);
+  const last = visits[0];
+  const furthest = [...SECTIONS].reverse().find((s) => visits.some((v) => v.furthest === s)) ?? null;
+  const totalMinutes = opened.reduce((sum, v) => sum + v.minutes, 0);
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={`Guest ${guest}`}>
+      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-ink/40" />
+      <div className="relative flex max-h-[88dvh] w-full max-w-md flex-col rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+        <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-ink/15 sm:hidden" aria-hidden />
+        <div className="flex items-start justify-between gap-3 border-b border-ink/8 px-5 pt-3 pb-3 sm:pt-5">
+          <div className="min-w-0">
+            <h2 className="font-body text-lg font-bold text-ink">
+              Guest {guest}
+              {data && <span className="font-normal text-ink/50"> ({visitCount(visits.length)})</span>}
+            </h2>
+            {first && last && (
+              <p className="mt-0.5 font-body text-xs text-ink/50">
+                {visits.length === 1 ? `Visited ${shortDate(first.startedAt)}` : `First ${shortDate(first.startedAt)} · last ${shortDate(last.startedAt)}`}
+              </p>
+            )}
+          </div>
+          <button type="button" onClick={onClose} className="h-9 flex-shrink-0 rounded-full bg-ink/6 px-3.5 font-body text-sm font-semibold text-ink/70">
+            Close
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+          {failed ? (
+            <p className="py-8 text-center font-body text-sm text-rose-deep">Couldn&apos;t load this guest. Try again.</p>
+          ) : !data ? (
+            <p className="py-8 text-center font-body text-sm text-ink/45">Loading…</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <Stat label="Visits" value={String(visits.length)} note={`${opened.length} opened the invite`} />
+                <Stat label="Time spent" value={opened.length ? duration(totalMinutes) : "—"} note="all visits together" />
+                <Stat label="Read up to" value={furthest ? SECTION_NAMES[furthest] : opened.length ? "Opened" : "—"} note="furthest on any visit" />
+                <Stat
+                  label="Did"
+                  value={[visits.some((v) => v.rsvp) && "💌", visits.some((v) => v.wish) && "🏮"].filter(Boolean).join(" ") || "—"}
+                  note={
+                    [visits.some((v) => v.rsvp) && "RSVP'd", visits.some((v) => v.wish) && "left a wish"].filter(Boolean).join(", ") ||
+                    "no RSVP or wish yet"
+                  }
+                />
+              </div>
+
+              <dl className="mt-4 space-y-2 font-body text-sm">
+                <Facts label="From" values={tally(visits.map((v) => v.place))} />
+                <Facts label="Country" values={tally(visits.map((v) => countryName(v.country) || "Unknown"))} />
+                <Facts label="Device" values={tally(visits.map((v) => DEVICE_NAMES[v.device] ?? v.device))} />
+                <Facts label="Browser" values={tally(visits.map((v) => v.browser))} />
+                <Facts label="Found it" values={tally(visits.map((v) => v.source))} />
+              </dl>
+
+              <h3 className="mt-5 font-body text-xs font-semibold tracking-wide text-ink/55 uppercase">Every visit</h3>
+              <ul className="divide-y divide-ink/8">
+                {visits.map((v) => (
+                  <VisitItem key={v.id} visit={v} />
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, note }: { label: string; value: string; note: string }) {
+  return (
+    <div className="rounded-2xl bg-ink/4 p-3">
+      <p className="font-body text-[11px] font-semibold tracking-wider text-ink/50 uppercase">{label}</p>
+      <p className="mt-1 truncate font-body text-lg font-bold text-ink">{value}</p>
+      <p className="mt-0.5 font-body text-[11px] leading-snug text-ink/50">{note}</p>
+    </div>
+  );
+}
+
+/** "Kochi ×2 · Thrissur" — counts only where a value came up more than once. */
+function Facts({ label, values }: { label: string; values: [string, number][] }) {
+  return (
+    <div className="flex gap-3">
+      <dt className="w-20 flex-shrink-0 text-ink/50">{label}</dt>
+      <dd className="min-w-0 text-ink/85">
+        {values.map(([value, n]) => (n > 1 ? `${value} ×${n}` : value)).join(" · ")}
+      </dd>
+    </div>
+  );
+}
 
 function FilterSheet({
   filters: f,
@@ -338,16 +506,7 @@ function FilterSheet({
   onClear: () => void;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = previous;
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
+  useSheet(onClose);
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label="Filter visits">
