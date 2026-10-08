@@ -4,10 +4,34 @@ import type { VisitEvent } from "./visits-store";
 // block the page, survive the tab closing, and fail silently.
 //
 // On the analytics page the couple can switch counting off for their own
-// devices, so their checking-in doesn't inflate the numbers.
+// devices, so their checking-in doesn't inflate the numbers. It's checked on
+// every beacon, so an invitation already open in another tab stops too.
 
+/** "1" don't count this device, "0" do (chosen on the dashboard), absent never chosen. */
 export const DONT_COUNT_KEY = "cathul:dont-count";
 const VISITOR_KEY = "cathul:visitor";
+
+function optedOut() {
+  try {
+    return localStorage.getItem(DONT_COUNT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** This device's visitor id, made now if it has none, so the dashboard can leave it out. Null if storage is blocked. */
+export function thisDevicesVisitor(): string | null {
+  try {
+    let visitor = localStorage.getItem(VISITOR_KEY);
+    if (!visitor) {
+      visitor = crypto.randomUUID();
+      localStorage.setItem(VISITOR_KEY, visitor);
+    }
+    return visitor;
+  } catch {
+    return null;
+  }
+}
 
 let visitId: string | null = null;
 const sent = new Set<string>();
@@ -76,6 +100,10 @@ export function watchActiveTime() {
 }
 
 function send(payload: object) {
+  if (optedOut()) {
+    visitId = null;
+    return;
+  }
   const body = JSON.stringify(payload);
   if (!navigator.sendBeacon?.("/api/visit", body)) {
     fetch("/api/visit", { method: "POST", body, keepalive: true }).catch(() => {});
@@ -88,7 +116,7 @@ export function startTracking() {
   let known: string | null = null;
   let visitor: string;
   try {
-    if (localStorage.getItem(DONT_COUNT_KEY) === "1") return;
+    if (optedOut()) return;
     known = localStorage.getItem(VISITOR_KEY);
     visitor = known ?? crypto.randomUUID();
     if (!known) localStorage.setItem(VISITOR_KEY, visitor);

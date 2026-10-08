@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { wedding } from "@/content/wedding";
+import { useLeaveThisDeviceOut } from "./dont-count";
 
 // The frame the admin pages share, built for a phone first: a sticky header
 // with the RSVPs / Wishes / Visitors switch (and whatever the page pins under it,
@@ -28,6 +29,7 @@ export function AdminShell({
   children: ReactNode;
 }) {
   const key = encodeURIComponent(adminKey);
+  useLeaveThisDeviceOut(adminKey);
   return (
     <div className="min-h-screen w-full bg-cream text-ink">
       <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">

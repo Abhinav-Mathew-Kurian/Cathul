@@ -84,6 +84,9 @@ export function RsvpsAdmin({ adminKey }: { adminKey: string }) {
 
   useEffect(() => {
     load();
+    // Keeps itself fresh while it's left open.
+    const timer = setInterval(() => document.visibilityState === "visible" && load(), 60_000);
+    return () => clearInterval(timer);
   }, [load]);
 
   const all = guests ?? [];

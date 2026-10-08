@@ -62,6 +62,41 @@ async function collection() {
   return visits;
 }
 
+// ── The couple's own devices ───────────────────────────────────────────────
+// A device switched to "don't count" on the dashboard sends its visitor id
+// here, and every figure leaves out that visitor's visits, past ones too.
+// Switching it back brings them back. Guest numbers still count them, so
+// everyone else's number never changes.
+
+type SettingsDoc = { _id: string; visitorIds: string[] };
+const EXCLUDED = "excluded-visitors";
+const memoryExcluded = new Set<string>();
+
+async function settings() {
+  const db = await getDb();
+  return db ? db.collection<SettingsDoc>("visit_settings") : null;
+}
+
+export async function getExcludedVisitors(): Promise<string[]> {
+  const store = await settings();
+  if (!store) return [...memoryExcluded];
+  return (await store.findOne({ _id: EXCLUDED }))?.visitorIds ?? [];
+}
+
+export async function setVisitorCounted(visitorId: string, counted: boolean): Promise<void> {
+  const store = await settings();
+  if (!store) {
+    if (counted) memoryExcluded.delete(visitorId);
+    else memoryExcluded.add(visitorId);
+    return;
+  }
+  await store.updateOne(
+    { _id: EXCLUDED },
+    counted ? { $pull: { visitorIds: visitorId } } : { $addToSet: { visitorIds: visitorId } },
+    { upsert: true }
+  );
+}
+
 export async function startVisit(start: VisitStart): Promise<void> {
   const now = new Date();
   const { _id, ...fields } = start;
@@ -137,6 +172,8 @@ export type VisitStats = {
   generatedAt: string;
   /** People with the invitation open in the last few minutes. */
   live: number;
+  /** When anyone last had the invitation open, or null with no visits. */
+  lastSeenAt: string | null;
   totals: {
     visits: number;
     visitors: number;
@@ -149,7 +186,7 @@ export type VisitStats = {
     /** Median minutes spent, over visits that opened the invitation. */
     medianMinutes: number | null;
   };
-  /** Last 30 days, oldest first, India time. */
+  /** Each day since the first visit (7 to 30 days), oldest first, India time. */
   daily: { day: string; visits: number; visitors: number }[];
   /** Visits per hour of the day (0–23, India time). */
   hourly: number[];
@@ -256,18 +293,24 @@ function toRow(v: VisitDoc, guest: Guest | undefined): VisitRow {
 }
 
 export async function getVisitStats(): Promise<VisitStats> {
-  const visits = await collection();
+  const [visits, excluded] = await Promise.all([collection(), getExcludedVisitors()]);
   const all = visits
-    ? await visits.find().sort({ startedAt: -1 }).limit(100_000).toArray()
-    : [...memory.values()].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+    ? await visits.find({ visitorId: { $nin: excluded } }).sort({ startedAt: -1 }).limit(100_000).toArray()
+    : [...memory.values()]
+        .filter((v) => !excluded.includes(v.visitorId))
+        .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
 
   const now = Date.now();
   const today = dayKey.format(now);
   const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
   const unique = (list: VisitDoc[]) => new Set(list.map((v) => v.visitorId)).size;
 
+  // From the first visit (at least a week, at most 30 days), so the chart isn't mostly empty days.
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const first = all.at(-1)?.startedAt.getTime() ?? now;
+  const span = Math.min(30, Math.max(7, Math.ceil((now - first) / DAY_MS) + 1));
   const days: string[] = [];
-  for (let i = 29; i >= 0; i--) days.push(dayKey.format(now - i * 24 * 60 * 60 * 1000));
+  for (let i = span - 1; i >= 0; i--) days.push(dayKey.format(now - i * DAY_MS));
   const byDay = new Map(days.map((d) => [d, [] as VisitDoc[]]));
   const hourly = Array<number>(24).fill(0);
   for (const v of all) {
@@ -306,6 +349,7 @@ export async function getVisitStats(): Promise<VisitStats> {
   return {
     generatedAt: new Date().toISOString(),
     live,
+    lastSeenAt: all.length ? new Date(Math.max(...all.map((v) => v.lastSeenAt.getTime()))).toISOString() : null,
     totals: {
       visits: all.length,
       visitors: unique(all),
@@ -463,9 +507,11 @@ export async function listVisits(filters: VisitFilters, page: number, withOption
   const skip = (Math.max(1, page) - 1) * VISIT_PAGE_SIZE;
   const visits = await collection();
   const guests = await guestNumbers(visits);
+  const excluded = await getExcludedVisitors();
   const regulars = filters.minVisits
-    ? [...guests].filter(([, g]) => g.visits >= filters.minVisits).map(([id]) => id)
+    ? [...guests].filter(([id, g]) => g.visits >= filters.minVisits && !excluded.includes(id)).map(([id]) => id)
     : null;
+  const whose = regulars ? { visitorId: { $in: regulars } } : { visitorId: { $nin: excluded } };
   const byVisits = filters.sort === "visits";
   let rows: VisitDoc[];
   let total: number;
@@ -494,7 +540,7 @@ export async function listVisits(filters: VisitFilters, page: number, withOption
     ];
     const [result] = await visits
       .aggregate<{ rows: VisitDoc[]; total: { n: number }[] }>([
-        { $match: { ...mongoFilter(filters), ...(regulars && { visitorId: { $in: regulars } }) } },
+        { $match: { ...mongoFilter(filters), ...whose } },
         { $addFields: { seconds } },
         ...(filters.minSeconds ? [{ $match: { seconds: { $gte: filters.minSeconds } } }] : []),
         ...(byVisits ? perGuest : [{ $sort: sort }]),
@@ -505,7 +551,7 @@ export async function listVisits(filters: VisitFilters, page: number, withOption
     total = result?.total[0]?.n ?? 0;
     if (withOptions) {
       const [device, source, browser, country, city] = await Promise.all(
-        (["device", "source", "browser", "country", "city"] as const).map((field) => visits.distinct(field))
+        (["device", "source", "browser", "country", "city"] as const).map((field) => visits.distinct(field, { visitorId: { $nin: excluded } }))
       );
       options = {
         device: sortedOptions(device as string[]),
@@ -516,7 +562,7 @@ export async function listVisits(filters: VisitFilters, page: number, withOption
       };
     }
   } else {
-    const all = [...memory.values()];
+    const all = [...memory.values()].filter((v) => !excluded.includes(v.visitorId));
     let matched = all.filter((v) => matchesFilter(v, filters) && (!regulars || regulars.includes(v.visitorId)));
     const visitsBy = (v: VisitDoc) => guests.get(v.visitorId)?.visits ?? 1;
     if (byVisits) {

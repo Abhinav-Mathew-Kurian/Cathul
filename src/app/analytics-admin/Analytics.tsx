@@ -1,11 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { AdminShell } from "@/components/admin/AdminShell";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { AdminShell, useToast } from "@/components/admin/AdminShell";
+import { setDontCount, useDontCount } from "@/components/admin/dont-count";
 import { countryName } from "@/lib/places";
-import { DONT_COUNT_KEY } from "@/lib/track";
 import { ACTION_NAMES, VisitsList } from "./VisitsList";
 import type { Count, SourceRow, VisitStats } from "@/lib/visits-store";
+
+// Three views, so a phone isn't one long scroll: Overview (what's happening
+// and how it's going), Visits (every visit, filtered) and Details (every
+// breakdown the data has).
 
 const SECTION_NAMES: Record<string, string> = {
   story: "Our Story",
@@ -27,20 +31,12 @@ const FUNNEL_NAMES: Record<string, string> = {
   wish: "Left a wish",
 };
 
-// "Don't count this device", read straight from localStorage. null on the
-// server and wherever storage is blocked — the switch then simply isn't shown.
-const dontCountListeners = new Set<() => void>();
-const subscribeDontCount = (listener: () => void) => {
-  dontCountListeners.add(listener);
-  return () => void dontCountListeners.delete(listener);
-};
-const readDontCount = () => {
-  try {
-    return localStorage.getItem(DONT_COUNT_KEY) === "1";
-  } catch {
-    return null;
-  }
-};
+type View = "overview" | "visits" | "details";
+const VIEWS: [View, string][] = [
+  ["overview", "Overview"],
+  ["visits", "Visits"],
+  ["details", "Details"],
+];
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -55,13 +51,24 @@ function duration(minutes: number) {
 const shortDay = (day: string) =>
   new Date(`${day}T12:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 
+const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+function ago(iso: string) {
+  const seconds = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return relative.format(-Math.floor(seconds / 60), "minute");
+  if (seconds < 86400) return relative.format(-Math.floor(seconds / 3600), "hour");
+  return relative.format(-Math.floor(seconds / 86400), "day");
+}
+
 export function Analytics({ adminKey }: { adminKey: string }) {
   const [stats, setStats] = useState<VisitStats | null>(null);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [view, setView] = useState<View>("overview");
   // Bumped on every refresh, so the visits list reloads its page too.
   const [refreshToken, setRefreshToken] = useState(0);
-  const dontCount = useSyncExternalStore(subscribeDontCount, readDontCount, () => null);
+  const dontCount = useDontCount();
+  const toast = useToast();
   const api = `/api/visits/admin?key=${encodeURIComponent(adminKey)}`;
 
   const load = useCallback(() => {
@@ -83,29 +90,53 @@ export function Analytics({ adminKey }: { adminKey: string }) {
 
   useEffect(() => {
     load();
-    // Keeps itself fresh while it's left open.
+    // Keeps itself fresh while it's left open — often enough for "on the invite now".
     const timer = setInterval(() => {
       if (document.visibilityState !== "visible") return;
       setRefreshToken((n) => n + 1);
       load();
-    }, 60_000);
+    }, 30_000);
     return () => clearInterval(timer);
   }, [load]);
 
-  function toggleDontCount() {
-    try {
-      if (dontCount) localStorage.removeItem(DONT_COUNT_KEY);
-      else localStorage.setItem(DONT_COUNT_KEY, "1");
-      dontCountListeners.forEach((listener) => listener());
-    } catch {
-      alert("This browser won't let the site remember that.");
+  async function toggleDontCount() {
+    const next = !dontCount;
+    if (await setDontCount(adminKey, next)) {
+      toast.show(next ? "This device's visits are left out" : "This device counts again");
+      refresh();
+    } else {
+      toast.show("Couldn't save that — check your connection and try again.", "error");
     }
   }
 
+  function switchView(next: View) {
+    setView(next);
+    window.scrollTo({ top: 0 });
+  }
+
   const t = stats?.totals;
+  const device = typeof navigator !== "undefined" && /iPhone|Android/i.test(navigator.userAgent) ? "phone" : "browser";
+
+  const toolbar = stats && t && t.visits > 0 && (
+    <nav className="grid grid-cols-3 gap-1.5" aria-label="Views">
+      {VIEWS.map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => switchView(id)}
+          aria-pressed={view === id}
+          className={`h-9 rounded-full font-body text-sm font-semibold transition-colors ${
+            view === id ? "bg-ink text-white" : "bg-white text-ink/65 shadow-sm"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </nav>
+  );
 
   return (
-    <AdminShell tab="visitors" adminKey={adminKey} onRefresh={refresh} refreshing={refreshing}>
+    <AdminShell tab="visitors" adminKey={adminKey} onRefresh={refresh} refreshing={refreshing} toolbar={toolbar}>
       {error && <p className="rounded-2xl bg-white/60 px-4 py-8 text-center font-body text-sm text-ink/55">{error}</p>}
       {!error && !stats && (
         <p className="rounded-2xl bg-white/60 px-4 py-8 text-center font-body text-sm text-ink/55">Loading visitors…</p>
@@ -113,44 +144,25 @@ export function Analytics({ adminKey }: { adminKey: string }) {
 
       {stats && t && (
         <>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-1">
-            <p className="font-body text-xs text-ink/50">
-              Counted once per phone or computer · India time · updated{" "}
-              {new Date(stats.generatedAt).toLocaleTimeString("en-IN", { timeStyle: "short" })}
-            </p>
-            <p
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-body text-xs font-semibold ${
-                stats.live ? "bg-white text-ink shadow-sm" : "text-ink/45"
-              }`}
-            >
-              <span className={`size-2 rounded-full ${stats.live ? "animate-pulse bg-leaf" : "bg-ink/20"}`} />
-              {stats.live ? `${stats.live} ${stats.live === 1 ? "person" : "people"} on the invite now` : "No one on the invite now"}
-            </p>
-          </div>
           {t.visits === 0 ? (
             <p className="rounded-3xl bg-white px-6 py-12 text-center font-body text-sm text-ink/55 shadow-sm">
               No visits yet. Once guests open the invitation link, they&apos;ll show up here.
             </p>
-          ) : (
+          ) : view === "overview" ? (
             <>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <Tile label="People" value={t.visitors} note={`${t.returningVisitors} came back`} />
-                <Tile label="Visits" value={t.visits} note={`${t.today.visits} today`} />
-                <Tile label="Opened the invite" value={t.opened} note={`${percent(t.opened, t.visits)} of visits`} />
-                <Tile
-                  label="Time spent"
-                  value={t.medianMinutes === null ? "—" : duration(t.medianMinutes)}
-                  note="typical, once opened"
-                />
-                <Tile label="Today" value={t.today.visitors} note={plural(t.today.visits, "visit")} />
-                <Tile label="Last 7 days" value={t.last7Days.visitors} note={plural(t.last7Days.visits, "visit")} />
-                <Tile label="RSVPs sent" value={t.rsvps} note="from tracked visits" />
-                <Tile label="Wishes sent" value={t.wishes} note="from tracked visits" />
-              </div>
+              <LiveCard
+                live={stats.live}
+                lastSeenAt={stats.lastSeenAt}
+                generatedAt={stats.generatedAt}
+                notYou={dontCount === true}
+              />
 
-              <Card title="Visits per day" subtitle="Last 30 days — hover or tap a bar for the numbers">
-                <DailyChart daily={stats.daily} />
-              </Card>
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Tile label="People" value={t.visitors} note={`${t.returningVisitors} came back`} />
+                <Tile label="Opened" value={t.opened} note={`${percent(t.opened, t.visits)} of ${plural(t.visits, "visit")}`} />
+                <Tile label="RSVPs" value={t.rsvps} note="sent from a visit" />
+                <Tile label="Today" value={t.today.visitors} note={plural(t.today.visits, "visit")} />
+              </div>
 
               <Card title="From visit to RSVP" subtitle="Share of every visit that got this far">
                 <Bars
@@ -159,6 +171,32 @@ export function Analytics({ adminKey }: { adminKey: string }) {
                   keepOrder
                 />
               </Card>
+
+              <Card
+                title="Visits per day"
+                subtitle={`Since ${shortDay(stats.daily[0].day)} — tap a bar for the numbers`}
+              >
+                <DailyChart daily={stats.daily} />
+              </Card>
+
+              <Card title="Links you shared" subtitle="Add ?src=name to a link (like ?src=college) to tell each group apart">
+                <SourceTable rows={stats.sourcesDetail} />
+              </Card>
+            </>
+          ) : view === "visits" ? (
+            <VisitsList adminKey={adminKey} refreshToken={refreshToken} />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Tile label="Visits" value={t.visits} note={`${t.today.visits} today`} />
+                <Tile
+                  label="Time spent"
+                  value={t.medianMinutes === null ? "—" : duration(t.medianMinutes)}
+                  note="typical, once opened"
+                />
+                <Tile label="Last 7 days" value={t.last7Days.visitors} note={`people · ${plural(t.last7Days.visits, "visit")}`} />
+                <Tile label="Wishes" value={t.wishes} note="sent from a visit" />
+              </div>
 
               <Card title="How far guests get" subtitle="Of the visits that opened the invitation">
                 <Bars
@@ -182,12 +220,8 @@ export function Analytics({ adminKey }: { adminKey: string }) {
                     total={stats.actionsBase}
                   />
                 ) : (
-                  <Empty />
+                  <p className="font-body text-sm text-ink/45">No taps yet.</p>
                 )}
-              </Card>
-
-              <Card title="Links you shared" subtitle="Add ?src=name to a link (like ?src=college) to tell each group apart">
-                <SourceTable rows={stats.sourcesDetail} />
               </Card>
 
               <div className="grid gap-x-4 sm:grid-cols-2">
@@ -206,23 +240,22 @@ export function Analytics({ adminKey }: { adminKey: string }) {
                 <Card title="Browsers">
                   <Bars rows={stats.browsers} total={t.visits} />
                 </Card>
-                <Card title="Time of day" subtitle="Visits by hour">
+                <Card title="Time of day" subtitle="Visits by hour, India time">
                   <HourlyChart hourly={stats.hourly} />
                 </Card>
               </div>
-
-              <VisitsList adminKey={adminKey} refreshToken={refreshToken} />
             </>
           )}
 
-          {dontCount !== null && (
+          {dontCount !== null && view !== "visits" && (
             <label className="mt-4 flex cursor-pointer items-center gap-4 rounded-3xl bg-white p-4 shadow-sm">
               <span className="min-w-0 flex-1 font-body">
-                <span className="block text-[15px] font-semibold text-ink">
-                  Don&apos;t count this {/(iPhone|Android)/i.test(navigator.userAgent) ? "phone" : "browser"}
-                </span>
+                <span className="block text-[15px] font-semibold text-ink">Don&apos;t count this {device}</span>
                 <span className="mt-0.5 block text-xs text-ink/50">
-                  Turn on for each of your own devices, so checking the site yourselves doesn&apos;t add to the numbers.
+                  {dontCount
+                    ? `On — this ${device}'s visits are left out of every number, including the live count.`
+                    : `Off — this ${device}'s visits count like a guest's.`}{" "}
+                  It switches on by itself on any device that opens the admin.
                 </span>
               </span>
               <input
@@ -240,7 +273,39 @@ export function Analytics({ adminKey }: { adminKey: string }) {
           )}
         </>
       )}
+      {toast.element}
     </AdminShell>
+  );
+}
+
+/** Who has the invitation open right now, leaving out the couple's own devices. */
+function LiveCard({
+  live,
+  lastSeenAt,
+  generatedAt,
+  notYou,
+}: {
+  live: number;
+  lastSeenAt: string | null;
+  generatedAt: string;
+  notYou: boolean;
+}) {
+  return (
+    <section className="flex items-center gap-4 rounded-3xl bg-white p-4 shadow-sm">
+      <span className="relative grid size-11 flex-shrink-0 place-items-center rounded-full bg-leaf/12" aria-hidden>
+        {live > 0 && <span className="absolute inset-0 animate-ping rounded-full bg-leaf/25" />}
+        <span className={`size-3 rounded-full ${live ? "bg-leaf" : "bg-ink/20"}`} />
+      </span>
+      <div className="min-w-0 flex-1 font-body">
+        <p className="text-[15px] font-bold text-ink" aria-live="polite">
+          {live ? `${live} ${live === 1 ? "person is" : "people are"} on the invite now` : "No one on the invite right now"}
+        </p>
+        <p className="mt-0.5 text-xs text-ink/50">
+          {lastSeenAt && !live ? `Last guest ${ago(lastSeenAt)} · ` : ""}
+          {notYou ? "Not counting you · " : ""}updated {new Date(generatedAt).toLocaleTimeString("en-IN", { timeStyle: "short" })}
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -362,7 +427,7 @@ function DailyChart({ daily }: { daily: VisitStats["daily"] }) {
       </div>
       <div className="mt-1 flex justify-between font-body text-[10px] text-ink/45">
         <span>{shortDay(daily[0].day)}</span>
-        <span>{shortDay(daily[15].day)}</span>
+        <span>{shortDay(daily[Math.floor(daily.length / 2)].day)}</span>
         <span>Today</span>
       </div>
     </div>
