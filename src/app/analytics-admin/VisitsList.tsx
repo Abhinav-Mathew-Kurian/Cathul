@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { countryName, townName } from "@/lib/places";
 import { SECTIONS } from "@/lib/sections";
 import type { GuestVisits, VisitFilterOptions, VisitFilters, VisitPage, VisitRow } from "@/lib/visits-store";
 
@@ -27,6 +28,7 @@ const ALL: VisitFilters = {
   wish: false,
   reached: "",
   minSeconds: 0,
+  minVisits: 0,
   device: "",
   source: "",
   browser: "",
@@ -41,15 +43,6 @@ const RANGES: [VisitFilters["range"], string][] = [
   ["7d", "7 days"],
   ["30d", "30 days"],
 ];
-
-const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
-const countryName = (code: string) => {
-  try {
-    return code.length === 2 ? (regionNames.of(code) ?? code) : code;
-  } catch {
-    return code;
-  }
-};
 
 function duration(minutes: number) {
   if (minutes < 1) return `${Math.max(1, Math.round(minutes * 60))}s`;
@@ -136,7 +129,7 @@ export function VisitsList({ adminKey, refreshToken }: { adminKey: string; refre
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="font-body text-[15px] font-bold text-ink">Visits</h2>
         <p className="font-body text-xs text-ink/50" aria-live="polite">
-          {data ? `${data.total} ${data.total === 1 ? "visit" : "visits"}` : ""}
+          {data ? `${data.total} ${noun(data.total, filters.sort === "visits" ? "guest" : "visit")}` : ""}
         </p>
       </div>
 
@@ -179,6 +172,7 @@ export function VisitsList({ adminKey, refreshToken }: { adminKey: string; refre
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="longest">Longest stay first</option>
+            <option value="visits">Most visits first</option>
           </select>
           <Chevron />
         </label>
@@ -234,7 +228,7 @@ export function VisitsList({ adminKey, refreshToken }: { adminKey: string; refre
             onClick={() => goTo(page - 1)}
             className="h-11 rounded-full bg-ink/6 px-4 font-body text-sm font-semibold text-ink/75 disabled:opacity-35"
           >
-            ‹ Newer
+            ‹ Back
           </button>
           <span className="font-body text-xs text-ink/55 tabular-nums">
             Page {page} of {pages}
@@ -245,7 +239,7 @@ export function VisitsList({ adminKey, refreshToken }: { adminKey: string; refre
             onClick={() => goTo(page + 1)}
             className="h-11 rounded-full bg-ink/6 px-4 font-body text-sm font-semibold text-ink/75 disabled:opacity-35"
           >
-            Older ›
+            Next ›
           </button>
         </nav>
       )}
@@ -255,6 +249,7 @@ export function VisitsList({ adminKey, refreshToken }: { adminKey: string; refre
           filters={filters}
           options={options}
           total={data?.total ?? null}
+          perGuest={filters.sort === "visits"}
           loading={loading}
           onChange={update}
           onClear={() => update({ ...ALL, range: filters.range, sort: filters.sort })}
@@ -277,8 +272,9 @@ function chipsFor(f: VisitFilters): [string, Partial<VisitFilters>][] {
   if (f.rsvp) chips.push(["RSVP'd", { rsvp: false }]);
   if (f.wish) chips.push(["Left a wish", { wish: false }]);
   if (f.minSeconds) chips.push([`${f.minSeconds >= 60 ? `${f.minSeconds / 60} min` : `${f.minSeconds}s`}+`, { minSeconds: 0 }]);
+  if (f.minVisits) chips.push([`${f.minVisits}+ visits`, { minVisits: 0 }]);
   if (f.reached) chips.push([`Reached ${SECTION_NAMES[f.reached]}`, { reached: "" }]);
-  if (f.city) chips.push([f.city, { city: "" }]);
+  if (f.city) chips.push([townName(f.city), { city: "" }]);
   if (f.country) chips.push([countryName(f.country), { country: "" }]);
   if (f.device) chips.push([DEVICE_NAMES[f.device] ?? f.device, { device: "" }]);
   if (f.source) chips.push([f.source, { source: "" }]);
@@ -286,7 +282,8 @@ function chipsFor(f: VisitFilters): [string, Partial<VisitFilters>][] {
   return chips;
 }
 
-const visitCount = (n: number) => `${n} ${n === 1 ? "visit" : "visits"}`;
+const noun = (n: number, word: string) => (n === 1 ? word : `${word}s`);
+const visitCount = (n: number) => `${n} ${noun(n, "visit")}`;
 
 /** One visit. In the list it names its guest and opens them; in a guest's sheet the guest goes without saying. */
 function VisitItem({ visit: v, onOpen }: { visit: VisitRow; onOpen?: () => void }) {
@@ -493,6 +490,7 @@ function FilterSheet({
   filters: f,
   options,
   total,
+  perGuest,
   loading,
   onChange,
   onClear,
@@ -501,6 +499,7 @@ function FilterSheet({
   filters: VisitFilters;
   options: VisitFilterOptions | null;
   total: number | null;
+  perGuest: boolean;
   loading: boolean;
   onChange: (next: Partial<VisitFilters>) => void;
   onClear: () => void;
@@ -545,6 +544,19 @@ function FilterSheet({
             />
           </Group>
 
+          <Group label="Visited at least">
+            <Segmented
+              value={String(f.minVisits)}
+              options={[
+                ["0", "Any"],
+                ["2", "2 times"],
+                ["3", "3 times"],
+                ["5", "5 times"],
+              ]}
+              onChange={(v) => onChange({ minVisits: Number(v) as VisitFilters["minVisits"] })}
+            />
+          </Group>
+
           <Group label="Did">
             <div className="flex gap-2">
               <Toggle on={f.rsvp} onClick={() => onChange({ rsvp: !f.rsvp })}>
@@ -578,8 +590,12 @@ function FilterSheet({
           </Group>
 
           <div className="grid grid-cols-2 gap-x-3 gap-y-5">
-            <Group label="Town">
-              <Select value={f.city} onChange={(city) => onChange({ city })} options={(options?.city ?? []).map((c) => [c, c])} />
+            <Group label="Town (approx.)">
+              <Select
+                value={f.city}
+                onChange={(city) => onChange({ city })}
+                options={(options?.city ?? []).map((c): [string, string] => [c, townName(c)]).sort((a, b) => a[1].localeCompare(b[1]))}
+              />
             </Group>
             <Group label="Country">
               <Select
@@ -615,7 +631,9 @@ function FilterSheet({
             onClick={onClose}
             className="h-12 w-full rounded-2xl bg-ink font-body text-base font-semibold text-white active:scale-[0.98]"
           >
-            {loading || total === null ? "Show visits" : `Show ${total} ${total === 1 ? "visit" : "visits"}`}
+            {loading || total === null
+              ? `Show ${perGuest ? "guests" : "visits"}`
+              : `Show ${total} ${noun(total, perGuest ? "guest" : "visit")}`}
           </button>
         </div>
       </div>

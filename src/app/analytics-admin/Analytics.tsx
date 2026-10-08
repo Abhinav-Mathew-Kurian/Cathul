@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { countryName } from "@/lib/places";
 import { DONT_COUNT_KEY } from "@/lib/track";
 import { VisitsList } from "./VisitsList";
 import type { Count, VisitStats } from "@/lib/visits-store";
@@ -17,15 +18,6 @@ const SECTION_NAMES: Record<string, string> = {
 };
 
 const DEVICE_NAMES: Record<string, string> = { phone: "📱 Phone", tablet: "📲 Tablet", computer: "💻 Computer" };
-
-const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
-const countryName = (code: string) => {
-  try {
-    return code.length === 2 ? (regionNames.of(code) ?? code) : code;
-  } catch {
-    return code;
-  }
-};
 
 // "Don't count this device", read straight from localStorage. null on the
 // server and wherever storage is blocked — the switch then simply isn't shown.
@@ -151,7 +143,7 @@ export function Analytics({ adminKey }: { adminKey: string }) {
               </Card>
 
               <div className="grid gap-x-4 sm:grid-cols-2">
-                <Card title="Where from" subtitle="Town, from the visitor's internet connection">
+                <Card title="Where from" subtitle="Roughly — the town their internet connection comes through">
                   <Bars rows={stats.places} total={t.visits} />
                 </Card>
                 <Card title="Countries">

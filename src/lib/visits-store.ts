@@ -1,5 +1,6 @@
 import type { Filter } from "mongodb";
 import { getDb } from "./mongo";
+import { placeName } from "./places";
 import { SECTIONS, type Section } from "./sections";
 
 // One document per visit (a page load), in its own collection. No cookies and
@@ -49,7 +50,10 @@ async function collection() {
   const db = await getDb();
   if (!db) return null;
   const visits = db.collection<VisitDoc>("visits");
-  indexesReady ??= visits.createIndex({ startedAt: -1 }).catch((error) => {
+  indexesReady ??= Promise.all([
+    visits.createIndex({ startedAt: -1 }),
+    visits.createIndex({ visitorId: 1, startedAt: -1 }),
+  ]).catch((error) => {
     indexesReady = null;
     console.error("Failed to ensure visit indexes:", error);
   });
@@ -173,8 +177,7 @@ function tally(values: string[], top = 8): Count[] {
   return [...sorted.slice(0, top - 1), { label: "Other", count: rest }];
 }
 
-const placeOf = (v: Pick<VisitDoc, "city" | "region" | "country">) =>
-  [v.city, v.region].filter(Boolean).join(", ") || v.country || "Unknown";
+const placeOf = (v: Pick<VisitDoc, "city" | "region" | "country">) => placeName(v);
 
 const minutesOf = (v: VisitDoc) =>
   v.activeSeconds !== undefined ? v.activeSeconds / 60 : (v.lastSeenAt.getTime() - v.startedAt.getTime()) / 60000;
@@ -280,8 +283,9 @@ export async function getVisitStats(): Promise<VisitStats> {
 
 export const VISIT_PAGE_SIZE = 15;
 const RANGES = ["today", "7d", "30d", "all"] as const;
-const SORTS = ["newest", "oldest", "longest"] as const;
+const SORTS = ["newest", "oldest", "longest", "visits"] as const;
 const MIN_SECONDS = [0, 30, 60, 300] as const;
+const MIN_VISITS = [0, 2, 3, 5] as const;
 /** Stands in for an empty town or country in the filters. */
 export const UNKNOWN = "Unknown";
 
@@ -293,11 +297,14 @@ export type VisitFilters = {
   wish: boolean;
   reached: Section | "";
   minSeconds: (typeof MIN_SECONDS)[number];
+  /** Only guests who've visited at least this many times, all time. */
+  minVisits: (typeof MIN_VISITS)[number];
   device: string;
   source: string;
   browser: string;
   country: string;
   city: string;
+  /** "visits" lists each guest once, on their latest matching visit, most visits first. */
   sort: (typeof SORTS)[number];
 };
 
@@ -305,6 +312,7 @@ export type VisitFilterOptions = Record<"device" | "source" | "browser" | "count
 
 export type VisitPage = {
   visits: VisitRow[];
+  /** Visits — or guests, when sorted by most visits. */
   total: number;
   page: number;
   pages: number;
@@ -325,6 +333,7 @@ export function parseVisitFilters(params: URLSearchParams): VisitFilters {
     wish: params.get("wish") === "1",
     reached: pick(params.get("reached"), SECTIONS, "" as Section) as Section | "",
     minSeconds: MIN_SECONDS.find((s) => String(s) === params.get("minSeconds")) ?? 0,
+    minVisits: MIN_VISITS.find((n) => String(n) === params.get("minVisits")) ?? 0,
     device: text("device"),
     source: text("source"),
     browser: text("browser"),
@@ -390,6 +399,11 @@ const sortedOptions = (values: string[]) =>
 export async function listVisits(filters: VisitFilters, page: number, withOptions = false): Promise<VisitPage> {
   const skip = (Math.max(1, page) - 1) * VISIT_PAGE_SIZE;
   const visits = await collection();
+  const guests = await guestNumbers(visits);
+  const regulars = filters.minVisits
+    ? [...guests].filter(([, g]) => g.visits >= filters.minVisits).map(([id]) => id)
+    : null;
+  const byVisits = filters.sort === "visits";
   let rows: VisitDoc[];
   let total: number;
   let options: VisitFilterOptions | undefined;
@@ -404,12 +418,23 @@ export async function listVisits(filters: VisitFilters, page: number, withOption
       filters.sort === "longest"
         ? { seconds: -1 as const, startedAt: -1 as const }
         : { startedAt: filters.sort === "oldest" ? (1 as const) : (-1 as const) };
+    // Most visits: each guest's latest matching visit, ranked by how many
+    // visits they've made in all, the latest guest first among equals.
+    const perGuest = [
+      { $sort: { startedAt: -1 as const } },
+      { $group: { _id: "$visitorId", doc: { $first: "$$ROOT" } } },
+      { $replaceRoot: { newRoot: "$doc" } },
+      { $lookup: { from: "visits", localField: "visitorId", foreignField: "visitorId", as: "all", pipeline: [{ $project: { _id: 1 } }] } },
+      { $addFields: { visitCount: { $size: "$all" } } },
+      { $project: { all: 0 } },
+      { $sort: { visitCount: -1 as const, startedAt: -1 as const } },
+    ];
     const [result] = await visits
       .aggregate<{ rows: VisitDoc[]; total: { n: number }[] }>([
-        { $match: mongoFilter(filters) },
+        { $match: { ...mongoFilter(filters), ...(regulars && { visitorId: { $in: regulars } }) } },
         { $addFields: { seconds } },
         ...(filters.minSeconds ? [{ $match: { seconds: { $gte: filters.minSeconds } } }] : []),
-        { $sort: sort },
+        ...(byVisits ? perGuest : [{ $sort: sort }]),
         { $facet: { rows: [{ $skip: skip }, { $limit: VISIT_PAGE_SIZE }], total: [{ $count: "n" }] } },
       ])
       .toArray();
@@ -429,11 +454,22 @@ export async function listVisits(filters: VisitFilters, page: number, withOption
     }
   } else {
     const all = [...memory.values()];
-    const matched = all.filter((v) => matchesFilter(v, filters));
+    let matched = all.filter((v) => matchesFilter(v, filters) && (!regulars || regulars.includes(v.visitorId)));
+    const visitsBy = (v: VisitDoc) => guests.get(v.visitorId)?.visits ?? 1;
+    if (byVisits) {
+      const latest = new Map<string, VisitDoc>();
+      for (const v of matched) {
+        const known = latest.get(v.visitorId);
+        if (!known || v.startedAt > known.startedAt) latest.set(v.visitorId, v);
+      }
+      matched = [...latest.values()];
+    }
     matched.sort((a, b) =>
-      filters.sort === "longest"
-        ? minutesOf(b) - minutesOf(a) || b.startedAt.getTime() - a.startedAt.getTime()
-        : (b.startedAt.getTime() - a.startedAt.getTime()) * (filters.sort === "oldest" ? -1 : 1)
+      byVisits
+        ? visitsBy(b) - visitsBy(a) || b.startedAt.getTime() - a.startedAt.getTime()
+        : filters.sort === "longest"
+          ? minutesOf(b) - minutesOf(a) || b.startedAt.getTime() - a.startedAt.getTime()
+          : (b.startedAt.getTime() - a.startedAt.getTime()) * (filters.sort === "oldest" ? -1 : 1)
     );
     rows = matched.slice(skip, skip + VISIT_PAGE_SIZE);
     total = matched.length;
@@ -448,7 +484,6 @@ export async function listVisits(filters: VisitFilters, page: number, withOption
     }
   }
 
-  const guests = await guestNumbers(visits);
   return {
     visits: rows.map((v) => toRow(v, guests.get(v.visitorId))),
     total,
