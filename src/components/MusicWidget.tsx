@@ -94,7 +94,6 @@ export function MusicWidget() {
               <button
                 type="button"
                 onClick={togglePlay}
-                disabled={!musicEnabled}
                 aria-label={isPlaying ? "Pause" : "Play"}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#2b2b33] transition active:scale-95 disabled:pointer-events-none disabled:opacity-40"
               >

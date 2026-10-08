@@ -294,33 +294,48 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("pointerdown", retry);
   }, [startPlayback]);
 
-  const togglePlay = useCallback(async () => {
+  // Plays from a tap, switching the music back on first if it was off — so
+  // Play works everywhere (the corner widget has no on/off switch of its own).
+  // The ref is set right away, not via the effect above, so play() still runs
+  // inside the tap that asked for it.
+  const play = useCallback(async () => {
     const audio = audioRef.current;
-    if (!audio || !musicEnabledRef.current) return;
-    if (isPlayingRef.current) {
-      audio.pause();
-      setIsPlaying(false);
-      return;
-    }
+    if (!audio) return;
+    musicEnabledRef.current = true;
+    setMusicEnabled(true);
     try {
       await audio.play();
+      hasAutoplayedRef.current = true;
       setIsPlaying(true);
     } catch {
       setIsPlaying(false);
     }
   }, []);
 
+  const togglePlay = useCallback(async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlayingRef.current) {
+      audio.pause();
+      setIsPlaying(false);
+      return;
+    }
+    await play();
+  }, [play]);
+
   const toggleMusicEnabled = useCallback(() => {
     const audio = audioRef.current;
     if (musicEnabledRef.current) {
       track("action:music-off");
+      musicEnabledRef.current = false;
       audio?.pause();
       setIsPlaying(false);
       setMusicEnabled(false);
     } else {
-      setMusicEnabled(true);
+      // Back on means the music comes back, not just an unlocked Play button.
+      void play();
     }
-  }, []);
+  }, [play]);
 
   const seek = useCallback((value: number) => {
     const audio = audioRef.current;
