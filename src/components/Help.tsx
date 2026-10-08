@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { motion, useInView } from "motion/react";
 import { wedding } from "@/content/wedding";
+import { track } from "@/lib/track";
 import { CallIcon } from "./doodles";
 import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
@@ -45,6 +46,7 @@ function ContactRow({
       </div>
       <a
         href={`tel:${contact.phone.replace(/\s+/g, "")}`}
+        onClick={() => track("action:call")}
         aria-label={`Call ${contact.name}`}
         className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-cream text-rose-deep transition hover:bg-cream-deep"
       >

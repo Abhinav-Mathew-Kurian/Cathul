@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode 
 import { AdminShell } from "@/components/admin/AdminShell";
 import { countryName } from "@/lib/places";
 import { DONT_COUNT_KEY } from "@/lib/track";
-import { VisitsList } from "./VisitsList";
-import type { Count, VisitStats } from "@/lib/visits-store";
+import { ACTION_NAMES, VisitsList } from "./VisitsList";
+import type { Count, SourceRow, VisitStats } from "@/lib/visits-store";
 
 const SECTION_NAMES: Record<string, string> = {
   story: "Our Story",
@@ -18,6 +18,14 @@ const SECTION_NAMES: Record<string, string> = {
 };
 
 const DEVICE_NAMES: Record<string, string> = { phone: "📱 Phone", tablet: "📲 Tablet", computer: "💻 Computer" };
+
+const FUNNEL_NAMES: Record<string, string> = {
+  visited: "Visited",
+  opened: "Opened the invite",
+  "reached-rsvp": "Scrolled to the RSVP",
+  rsvp: "Sent an RSVP",
+  wish: "Left a wish",
+};
 
 // "Don't count this device", read straight from localStorage. null on the
 // server and wherever storage is blocked — the switch then simply isn't shown.
@@ -105,10 +113,20 @@ export function Analytics({ adminKey }: { adminKey: string }) {
 
       {stats && t && (
         <>
-          <p className="mb-3 px-1 font-body text-xs text-ink/50">
-            Counted once per phone or computer · India time · updated{" "}
-            {new Date(stats.generatedAt).toLocaleTimeString("en-IN", { timeStyle: "short" })}
-          </p>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-1">
+            <p className="font-body text-xs text-ink/50">
+              Counted once per phone or computer · India time · updated{" "}
+              {new Date(stats.generatedAt).toLocaleTimeString("en-IN", { timeStyle: "short" })}
+            </p>
+            <p
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-body text-xs font-semibold ${
+                stats.live ? "bg-white text-ink shadow-sm" : "text-ink/45"
+              }`}
+            >
+              <span className={`size-2 rounded-full ${stats.live ? "animate-pulse bg-leaf" : "bg-ink/20"}`} />
+              {stats.live ? `${stats.live} ${stats.live === 1 ? "person" : "people"} on the invite now` : "No one on the invite now"}
+            </p>
+          </div>
           {t.visits === 0 ? (
             <p className="rounded-3xl bg-white px-6 py-12 text-center font-body text-sm text-ink/55 shadow-sm">
               No visits yet. Once guests open the invitation link, they&apos;ll show up here.
@@ -134,6 +152,14 @@ export function Analytics({ adminKey }: { adminKey: string }) {
                 <DailyChart daily={stats.daily} />
               </Card>
 
+              <Card title="From visit to RSVP" subtitle="Share of every visit that got this far">
+                <Bars
+                  rows={stats.funnel.map((s) => ({ label: FUNNEL_NAMES[s.label] ?? s.label, count: s.count }))}
+                  total={t.visits}
+                  keepOrder
+                />
+              </Card>
+
               <Card title="How far guests get" subtitle="Of the visits that opened the invitation">
                 <Bars
                   rows={stats.sections.map((s) => ({ label: SECTION_NAMES[s.label] ?? s.label, count: s.count }))}
@@ -142,15 +168,34 @@ export function Analytics({ adminKey }: { adminKey: string }) {
                 />
               </Card>
 
+              <Card
+                title="What they tapped"
+                subtitle={
+                  stats.actionsSince
+                    ? `Of the ${plural(stats.actionsBase, "visit")} that opened the invite since ${shortDay(stats.actionsSince.slice(0, 10))}`
+                    : "Starts counting with the next visit"
+                }
+              >
+                {stats.actionsBase ? (
+                  <Bars
+                    rows={stats.actions.map((a) => ({ label: ACTION_NAMES[a.label] ?? a.label, count: a.count }))}
+                    total={stats.actionsBase}
+                  />
+                ) : (
+                  <Empty />
+                )}
+              </Card>
+
+              <Card title="Links you shared" subtitle="Add ?src=name to a link (like ?src=college) to tell each group apart">
+                <SourceTable rows={stats.sourcesDetail} />
+              </Card>
+
               <div className="grid gap-x-4 sm:grid-cols-2">
                 <Card title="Where from" subtitle="Roughly — the town their internet connection comes through">
                   <Bars rows={stats.places} total={t.visits} />
                 </Card>
                 <Card title="Countries">
                   <Bars rows={stats.countries.map((c) => ({ ...c, label: countryName(c.label) }))} total={t.visits} />
-                </Card>
-                <Card title="How they found it" subtitle="Add ?src=name to a link you share to tell it apart">
-                  <Bars rows={stats.sources} total={t.visits} />
                 </Card>
                 <Card title="Devices">
                   <Bars
@@ -243,6 +288,35 @@ function Bars({ rows, total, keepOrder = false }: { rows: Count[]; total: number
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Each way in: how many came, and how many of them opened and RSVP'd. */
+function SourceTable({ rows }: { rows: SourceRow[] }) {
+  if (rows.length === 0) return <Empty />;
+  return (
+    <div className="-mx-1 overflow-x-auto">
+      <table className="w-full font-body text-sm">
+        <thead>
+          <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-ink/50">
+            <th className="px-1 pb-2 font-semibold">Link</th>
+            <th className="px-1 pb-2 text-right font-semibold">People</th>
+            <th className="px-1 pb-2 text-right font-semibold">Opened</th>
+            <th className="px-1 pb-2 text-right font-semibold">RSVPs</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-ink/8">
+          {rows.map((r) => (
+            <tr key={r.label}>
+              <td className="max-w-[10rem] truncate px-1 py-2 text-ink/85">{r.label}</td>
+              <td className="px-1 py-2 text-right tabular-nums text-ink">{r.people}</td>
+              <td className="px-1 py-2 text-right tabular-nums text-ink/70">{percent(r.opened, r.visits)}</td>
+              <td className="px-1 py-2 text-right font-semibold tabular-nums text-ink">{r.rsvps}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

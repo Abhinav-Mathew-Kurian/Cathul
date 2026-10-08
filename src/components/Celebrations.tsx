@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import Image from "next/image";
 import { wedding, type ReceptionEvent } from "@/content/wedding";
 import { buildIcsContent, formatEventDateParts } from "@/lib/calendar";
+import { track } from "@/lib/track";
 import { CalendarIcon, HeartIcon, PinIcon } from "./doodles";
 import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
@@ -31,6 +32,7 @@ function ReceptionCard({ event, index }: { event: ReceptionEvent; index: number 
   const delay = index * 0.12;
 
   function downloadIcs() {
+    track(`action:calendar:${event.type}`);
     const start = new Date(event.startsAt);
     const blob = new Blob(
       [
@@ -127,6 +129,7 @@ function ReceptionCard({ event, index }: { event: ReceptionEvent; index: number 
           href={event.mapsUrl}
           target="_blank"
           rel="noreferrer"
+          onClick={() => track(`action:map:${event.type}`)}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white px-3 py-3 font-body text-xs font-bold text-ink shadow-sm transition hover:bg-cream-deep"
         >
           <PinIcon className="h-3.5 w-3.5 text-rose" />

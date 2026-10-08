@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { countryName, townName } from "@/lib/places";
-import { SECTIONS } from "@/lib/sections";
+import { ACTIONS, SECTIONS } from "@/lib/sections";
 import type { GuestVisits, VisitFilterOptions, VisitFilters, VisitPage, VisitRow } from "@/lib/visits-store";
 
 // Every visit, fifteen at a time, with every filter the data supports. The
@@ -20,6 +20,17 @@ const SECTION_NAMES: Record<string, string> = {
 };
 const DEVICE_NAMES: Record<string, string> = { phone: "📱 Phone", tablet: "📲 Tablet", computer: "💻 Computer" };
 
+export const ACTION_NAMES: Record<string, string> = {
+  "map:groom": "📍 Groom's side map",
+  "map:bride": "📍 Bride's side map",
+  "calendar:groom": "📅 Groom's side to calendar",
+  "calendar:bride": "📅 Bride's side to calendar",
+  photo: "🖼️ Opened a photo",
+  like: "❤️ Liked a photo",
+  call: "📞 Called for help",
+  "music-off": "🔇 Turned the music off",
+};
+
 const ALL: VisitFilters = {
   range: "all",
   status: "any",
@@ -27,6 +38,7 @@ const ALL: VisitFilters = {
   rsvp: false,
   wish: false,
   reached: "",
+  tapped: "",
   minSeconds: 0,
   minVisits: 0,
   device: "",
@@ -273,6 +285,7 @@ function chipsFor(f: VisitFilters): [string, Partial<VisitFilters>][] {
   if (f.wish) chips.push(["Left a wish", { wish: false }]);
   if (f.minSeconds) chips.push([`${f.minSeconds >= 60 ? `${f.minSeconds / 60} min` : `${f.minSeconds}s`}+`, { minSeconds: 0 }]);
   if (f.minVisits) chips.push([`${f.minVisits}+ visits`, { minVisits: 0 }]);
+  if (f.tapped) chips.push([ACTION_NAMES[f.tapped] ?? f.tapped, { tapped: "" }]);
   if (f.reached) chips.push([`Reached ${SECTION_NAMES[f.reached]}`, { reached: "" }]);
   if (f.city) chips.push([townName(f.city), { city: "" }]);
   if (f.country) chips.push([countryName(f.country), { country: "" }]);
@@ -313,6 +326,11 @@ function VisitItem({ visit: v, onOpen }: { visit: VisitRow; onOpen?: () => void 
           )}
           {v.rsvp && <Tag tone="rose">💌 RSVP&apos;d</Tag>}
           {v.wish && <Tag tone="rose">🏮 Wish</Tag>}
+          {v.actions.map((a) => (
+            <Tag key={a} tone="muted">
+              {ACTION_NAMES[a] ?? a}
+            </Tag>
+          ))}
         </p>
       </div>
       <p className="flex-shrink-0 text-right font-body text-xs text-ink/50">
@@ -586,6 +604,14 @@ function FilterSheet({
               value={f.reached}
               onChange={(reached) => onChange({ reached: reached as VisitFilters["reached"] })}
               options={SECTIONS.map((s) => [s, SECTION_NAMES[s]])}
+            />
+          </Group>
+
+          <Group label="Tapped">
+            <Select
+              value={f.tapped}
+              onChange={(tapped) => onChange({ tapped: tapped as VisitFilters["tapped"] })}
+              options={ACTIONS.map((a) => [a, ACTION_NAMES[a]])}
             />
           </Group>
 

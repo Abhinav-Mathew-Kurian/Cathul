@@ -1,7 +1,7 @@
 import type { Filter } from "mongodb";
 import { getDb } from "./mongo";
 import { placeName } from "./places";
-import { SECTIONS, type Section } from "./sections";
+import { ACTIONS, SECTIONS, type Action, type Section } from "./sections";
 
 // One document per visit (a page load), in its own collection. No cookies and
 // nothing personal: the browser keeps a random visitor id in localStorage so
@@ -11,7 +11,7 @@ import { SECTIONS, type Section } from "./sections";
 // A visit is created by "start", then only ever *updated* by later events,
 // and only if it exists — a made-up visit id can't create anything.
 
-export type VisitEvent = "open" | "rsvp" | "wish" | "ping" | `section:${Section}`;
+export type VisitEvent = "open" | "rsvp" | "wish" | "ping" | `section:${Section}` | `action:${Action}`;
 
 type VisitDoc = {
   _id: string;
@@ -31,6 +31,8 @@ type VisitDoc = {
   sections: Section[];
   rsvp: boolean;
   wish: boolean;
+  /** What they tapped (see ACTIONS). Absent on visits from before it was counted. */
+  actions?: Action[];
   /**
    * Seconds the guest actually spent with the page on screen and in use (see
    * src/lib/track.ts). Absent on visits from before it was measured — those
@@ -71,6 +73,7 @@ export async function startVisit(start: VisitStart): Promise<void> {
     sections: [],
     rsvp: false,
     wish: false,
+    actions: [],
     activeSeconds: 0,
   };
   const visits = await collection();
@@ -87,9 +90,11 @@ export async function recordVisitEvent(id: string, event: VisitEvent, activeSeco
   const lastSeenAt = new Date();
   const set: Partial<VisitDoc> = { lastSeenAt };
   let section: Section | null = null;
+  let action: Action | null = null;
   if (event === "open") set.opened = true;
   else if (event === "rsvp" || event === "wish") set[event] = true;
   else if (event.startsWith("section:")) section = event.slice("section:".length) as Section;
+  else if (event.startsWith("action:")) action = event.slice("action:".length) as Action;
 
   const visits = await collection();
   if (!visits) {
@@ -97,6 +102,7 @@ export async function recordVisitEvent(id: string, event: VisitEvent, activeSeco
     if (!doc) return;
     Object.assign(doc, set);
     if (section && !doc.sections.includes(section)) doc.sections.push(section);
+    if (action && !doc.actions?.includes(action)) (doc.actions ??= []).push(action);
     if (activeSeconds !== null) doc.activeSeconds = Math.max(doc.activeSeconds ?? 0, activeSeconds);
     return;
   }
@@ -107,6 +113,7 @@ export async function recordVisitEvent(id: string, event: VisitEvent, activeSeco
     {
       $set: set,
       ...(section && { $addToSet: { sections: section } }),
+      ...(action && { $addToSet: { actions: action } }),
       ...(activeSeconds !== null && { $max: { activeSeconds } }),
     }
   );
@@ -120,8 +127,16 @@ const hourOf = new Intl.DateTimeFormat("en-GB", { timeZone: TIME_ZONE, hour: "2-
 
 export type Count = { label: string; count: number };
 
+/** Seen this recently, a guest counts as on the invitation now (the page sends a heartbeat a minute). */
+const LIVE_MS = 3 * 60 * 1000;
+
+/** One link (?src=…) or other way in, and how its guests got on. */
+export type SourceRow = { label: string; visits: number; people: number; opened: number; rsvps: number };
+
 export type VisitStats = {
   generatedAt: string;
+  /** People with the invitation open in the last few minutes. */
+  live: number;
   totals: {
     visits: number;
     visitors: number;
@@ -140,9 +155,18 @@ export type VisitStats = {
   hourly: number[];
   /** Of the visits that opened the invitation, how many reached each section. */
   sections: Count[];
+  /** Everyone who visited, then how many of them opened, reached the RSVP, RSVP'd, and left a wish. */
+  funnel: Count[];
+  /** Of the visits that opened the invitation since taps were first counted, how many did each. */
+  actions: Count[];
+  /** When taps were first counted, or null before any were. */
+  actionsSince: string | null;
+  /** Of those, how many opened the invitation. */
+  actionsBase: number;
+  /** Each way in, most visits first. */
+  sourcesDetail: SourceRow[];
   places: Count[];
   countries: Count[];
-  sources: Count[];
   devices: Count[];
   browsers: Count[];
 };
@@ -166,6 +190,7 @@ export type VisitRow = {
   furthest: string | null;
   rsvp: boolean;
   wish: boolean;
+  actions: Action[];
 };
 
 function tally(values: string[], top = 8): Count[] {
@@ -226,6 +251,7 @@ function toRow(v: VisitDoc, guest: Guest | undefined): VisitRow {
     furthest: [...SECTIONS].reverse().find((s) => v.sections.includes(s)) ?? null,
     rsvp: v.rsvp,
     wish: v.wish,
+    actions: v.actions ?? [],
   };
 }
 
@@ -254,9 +280,32 @@ export async function getVisitStats(): Promise<VisitStats> {
   const todays = byDay.get(today) ?? [];
   const week = all.filter((v) => v.startedAt.getTime() >= weekAgo);
   const visitorsWhoReturned = new Set(all.filter((v) => v.returning).map((v) => v.visitorId));
+  const live = unique(all.filter((v) => now - v.lastSeenAt.getTime() < LIVE_MS));
+
+  // Visits arrive newest first, so the last one with taps is the first ever counted.
+  const tapped = all.filter((v) => v.actions);
+  const tappedOpened = tapped.filter((v) => v.opened);
+
+  const bySource = new Map<string, VisitDoc[]>();
+  for (const v of all) {
+    const list = bySource.get(v.source);
+    if (list) list.push(v);
+    else bySource.set(v.source, [v]);
+  }
+  const sourcesDetail = [...bySource]
+    .map(([label, list]) => ({
+      label,
+      visits: list.length,
+      people: unique(list),
+      opened: list.filter((v) => v.opened).length,
+      rsvps: list.filter((v) => v.rsvp).length,
+    }))
+    .sort((a, b) => b.visits - a.visits)
+    .slice(0, 12);
 
   return {
     generatedAt: new Date().toISOString(),
+    live,
     totals: {
       visits: all.length,
       visitors: unique(all),
@@ -271,9 +320,19 @@ export async function getVisitStats(): Promise<VisitStats> {
     daily: days.map((day) => ({ day, visits: byDay.get(day)!.length, visitors: unique(byDay.get(day)!) })),
     hourly,
     sections: SECTIONS.map((s) => ({ label: s, count: opened.filter((v) => v.sections.includes(s)).length })),
+    funnel: [
+      { label: "visited", count: all.length },
+      { label: "opened", count: opened.length },
+      { label: "reached-rsvp", count: opened.filter((v) => v.sections.includes("rsvp")).length },
+      { label: "rsvp", count: all.filter((v) => v.rsvp).length },
+      { label: "wish", count: all.filter((v) => v.wish).length },
+    ],
+    actions: ACTIONS.map((a) => ({ label: a, count: tappedOpened.filter((v) => v.actions!.includes(a)).length })),
+    actionsSince: tapped.at(-1)?.startedAt.toISOString() ?? null,
+    actionsBase: tappedOpened.length,
+    sourcesDetail,
     places: tally(all.map(placeOf), 10),
     countries: tally(all.map((v) => v.country || "Unknown"), 6),
-    sources: tally(all.map((v) => v.source)),
     devices: tally(all.map((v) => v.device)),
     browsers: tally(all.map((v) => v.browser), 6),
   };
@@ -296,6 +355,7 @@ export type VisitFilters = {
   rsvp: boolean;
   wish: boolean;
   reached: Section | "";
+  tapped: Action | "";
   minSeconds: (typeof MIN_SECONDS)[number];
   /** Only guests who've visited at least this many times, all time. */
   minVisits: (typeof MIN_VISITS)[number];
@@ -332,6 +392,7 @@ export function parseVisitFilters(params: URLSearchParams): VisitFilters {
     rsvp: params.get("rsvp") === "1",
     wish: params.get("wish") === "1",
     reached: pick(params.get("reached"), SECTIONS, "" as Section) as Section | "",
+    tapped: pick(params.get("tapped"), ACTIONS, "" as Action) as Action | "",
     minSeconds: MIN_SECONDS.find((s) => String(s) === params.get("minSeconds")) ?? 0,
     minVisits: MIN_VISITS.find((n) => String(n) === params.get("minVisits")) ?? 0,
     device: text("device"),
@@ -362,6 +423,7 @@ function mongoFilter(f: VisitFilters): Filter<VisitDoc> {
     ...(f.rsvp && { rsvp: true }),
     ...(f.wish && { wish: true }),
     ...(f.reached && { sections: f.reached }),
+    ...(f.tapped && { actions: f.tapped }),
     ...(f.device && { device: f.device as VisitDoc["device"] }),
     ...(f.source && { source: f.source }),
     ...(f.browser && { browser: f.browser }),
@@ -379,6 +441,7 @@ function matchesFilter(v: VisitDoc, f: VisitFilters): boolean {
     (!f.rsvp || v.rsvp) &&
     (!f.wish || v.wish) &&
     (!f.reached || v.sections.includes(f.reached)) &&
+    (!f.tapped || !!v.actions?.includes(f.tapped)) &&
     (!f.device || v.device === f.device) &&
     (!f.source || v.source === f.source) &&
     (!f.browser || v.browser === f.browser) &&

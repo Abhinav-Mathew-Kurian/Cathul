@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SECTIONS } from "@/lib/sections";
+import { ACTIONS, SECTIONS } from "@/lib/sections";
 import { recordVisitEvent, startVisit, type VisitEvent } from "@/lib/visits-store";
 import { withinRateLimit } from "@/lib/wishes-store";
 
@@ -8,7 +8,14 @@ import { withinRateLimit } from "@/lib/wishes-store";
 
 const ID = /^[0-9a-f-]{36}$/;
 const BOT = /bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp\/|headless|lighthouse|pingdom|curl|wget/i;
-const EVENTS = new Set<string>(["open", "rsvp", "wish", "ping", ...SECTIONS.map((s) => `section:${s}`)]);
+const EVENTS = new Set<string>([
+  "open",
+  "rsvp",
+  "wish",
+  "ping",
+  ...SECTIONS.map((s) => `section:${s}`),
+  ...ACTIONS.map((a) => `action:${a}`),
+]);
 const START_MAX = 60;
 const START_WINDOW_MS = 10 * 60 * 1000;
 

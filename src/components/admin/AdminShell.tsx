@@ -3,12 +3,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { wedding } from "@/content/wedding";
 
-// The frame both admin pages share, built for a phone first: a sticky header
-// with the Wishes / Visitors switch (and whatever the page pins under it,
+// The frame the admin pages share, built for a phone first: a sticky header
+// with the RSVPs / Wishes / Visitors switch (and whatever the page pins under it,
 // like filters), big touch targets, and a toast and confirm sheet in place of
 // the browser's alert() and confirm() boxes.
 
-export type AdminTab = "wishes" | "visitors";
+export type AdminTab = "rsvps" | "wishes" | "visitors";
 
 const { groom, bride } = wedding.couple;
 
@@ -51,9 +51,10 @@ export function AdminShell({
       {/* Only the switch and the page's own controls stay pinned while scrolling. */}
       <header className="sticky top-0 z-30 border-b border-ink/8 bg-cream/90 pt-3 backdrop-blur-md">
         <div className="mx-auto max-w-2xl px-4">
-          <nav className="grid grid-cols-2 rounded-2xl bg-ink/6 p-1" aria-label="Admin pages">
+          <nav className="grid grid-cols-3 rounded-2xl bg-ink/6 p-1" aria-label="Admin pages">
             {(
               [
+                ["rsvps", "RSVPs", `/rsvps-admin?key=${key}`],
                 ["wishes", "Wishes", `/wishes-admin?key=${key}`],
                 ["visitors", "Visitors", `/analytics-admin?key=${key}`],
               ] as const

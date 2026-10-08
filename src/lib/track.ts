@@ -20,8 +20,11 @@ const sent = new Set<string>();
 // while they read, fits well inside that; a phone face-down on the table or a
 // desktop tab left behind another window doesn't.
 const IDLE_MS = 90_000;
+const HEARTBEAT_MS = 60_000;
 let activeMs = 0;
 let lastActive = 0;
+/** The guest's last touch, scroll or key press — unlike lastActive, never moved by the clock itself. */
+let lastInput = 0;
 let counting = false;
 
 function tick() {
@@ -38,8 +41,19 @@ const activeSeconds = () => {
 /** Starts the clock; returns a cleanup. Called once by VisitTracker. */
 export function watchActiveTime() {
   counting = document.visibilityState === "visible";
-  lastActive = performance.now();
-  const onActivity = () => document.visibilityState === "visible" && tick();
+  lastActive = lastInput = performance.now();
+  const onActivity = () => {
+    if (document.visibilityState !== "visible") return;
+    lastInput = performance.now();
+    tick();
+  };
+  // While the guest is on the page and still using it, a quiet heartbeat a
+  // minute keeps "on the invitation now" current. It reports the time
+  // counted so far without running the clock, so it can't stretch a pause.
+  const heartbeat = setInterval(() => {
+    if (!visitId || document.visibilityState !== "visible" || performance.now() - lastInput > IDLE_MS) return;
+    send({ id: visitId, event: "ping", active: Math.round(activeMs / 1000) });
+  }, HEARTBEAT_MS);
   const onVisibility = () => {
     if (document.visibilityState === "hidden") {
       // The guest is leaving or switching away: close the stretch and report it.
@@ -48,13 +62,14 @@ export function watchActiveTime() {
       track("ping");
     } else {
       counting = true;
-      lastActive = performance.now();
+      lastActive = lastInput = performance.now();
     }
   };
   const events = ["pointerdown", "keydown", "scroll", "wheel", "touchstart"] as const;
   for (const e of events) window.addEventListener(e, onActivity, { passive: true });
   document.addEventListener("visibilitychange", onVisibility);
   return () => {
+    clearInterval(heartbeat);
     for (const e of events) window.removeEventListener(e, onActivity);
     document.removeEventListener("visibilitychange", onVisibility);
   };

@@ -90,3 +90,34 @@ export async function exportRsvpsAsCsv(): Promise<string> {
   ]);
   return [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
 }
+
+// ── The couple's RSVP list ─────────────────────────────────────────────────
+
+/** One guest's reply: their latest, with any earlier ones underneath. */
+export type RsvpGuest = RsvpEntry & {
+  /** Earlier replies from the same phone (or the same name, without one), newest first. */
+  earlier: Pick<RsvpEntry, "attending" | "events" | "submittedAt">[];
+};
+
+/** Same phone, or — when there's no usable phone — the same name, means the same guest. */
+function guestKey(entry: RsvpEntry) {
+  const digits = entry.phone.replace(/\D/g, "");
+  return digits.length >= 7 ? `phone:${digits.slice(-10)}` : `name:${entry.name.trim().toLowerCase().replace(/\s+/g, " ")}`;
+}
+
+/** Every guest who's replied, newest reply first, a changed answer counted once. */
+export async function listRsvpGuests(): Promise<RsvpGuest[]> {
+  const guests = new Map<string, RsvpGuest>();
+  // listRsvps() is newest first, so the first reply seen for a guest is their latest.
+  for (const { name, phone, attending, events, message, submittedAt } of await listRsvps()) {
+    const key = guestKey({ name, phone, attending, events, message, submittedAt });
+    const known = guests.get(key);
+    if (known) {
+      known.earlier.push({ attending, events, submittedAt });
+      if (!known.message && message) known.message = message;
+    } else {
+      guests.set(key, { name, phone, attending, events, message, submittedAt, earlier: [] });
+    }
+  }
+  return [...guests.values()];
+}

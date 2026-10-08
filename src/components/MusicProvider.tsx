@@ -14,6 +14,7 @@ import {
 import { animate, useMotionValue, type MotionValue } from "motion/react";
 import { wedding, type Track } from "@/content/wedding";
 import { compilePulse, PulseClock, type PulseChannel, type PulseMap } from "@/lib/pulse";
+import { track } from "@/lib/track";
 
 const playlist: Track[] = wedding.music.playlist;
 
@@ -312,6 +313,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const toggleMusicEnabled = useCallback(() => {
     const audio = audioRef.current;
     if (musicEnabledRef.current) {
+      track("action:music-off");
       audio?.pause();
       setIsPlaying(false);
       setMusicEnabled(false);

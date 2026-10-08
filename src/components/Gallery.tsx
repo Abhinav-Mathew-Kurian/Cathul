@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { wedding, type GalleryPhoto } from "@/content/wedding";
 import { burst, haptic } from "@/lib/burst";
+import { track } from "@/lib/track";
 import { HeartIcon } from "./doodles";
 import { BeatingHeart } from "./BeatingHeart";
 import { FallingPetals } from "./FallingPetals";
@@ -157,6 +158,7 @@ export function Gallery() {
   const [liked, setLiked] = useState<ReadonlySet<string>>(() => new Set());
 
   function like(id: string) {
+    track("action:like");
     setLiked((current) => (current.has(id) ? current : new Set(current).add(id)));
   }
 
@@ -188,7 +190,10 @@ export function Gallery() {
               photo={photo}
               index={i}
               liked={liked.has(photo.id)}
-              onOpen={() => setActive(photo)}
+              onOpen={() => {
+                track("action:photo");
+                setActive(photo);
+              }}
               onLike={() => like(photo.id)}
             />
           ))}
